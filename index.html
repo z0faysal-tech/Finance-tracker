@@ -1,11 +1,12 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="fr">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Financial Workbook — MAD</title>
+  <title>Financial Workbook - MAD</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css">
   <style>
     body { font-family: 'Inter', sans-serif; }
     .tab-content { transition: opacity 0.2s ease-in-out; }
@@ -13,21 +14,68 @@
     .modal-backdrop { transition: opacity 0.2s ease; }
     .modal-panel { transition: all 0.2s ease; }
     .input-alert { box-shadow: 0 0 0 2px rgba(220,38,38,.4); border-color: rgb(220,38,38); }
+    .loading-spinner {
+        border: 4px solid rgba(0, 0, 0, 0.1);
+        border-left-color: #4f46e5;
+        border-radius: 50%;
+        width: 24px;
+        height: 24px;
+        animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+    #chart-container {
+        position: relative;
+        height: 400px;
+        width: 100%;
+        margin-top: 1rem;
+    }
+    .hidden-content {
+      display: none;
+    }
   </style>
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, collection, query, onSnapshot, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, runTransaction } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 </head>
 <body class="bg-gray-50 text-gray-800">
-  <div class="container mx-auto p-4 md:p-8 max-w-7xl">
+  
+  <!-- Login Page -->
+  <div id="loginPage" class="flex flex-col items-center justify-center min-h-screen p-4">
+    <div class="bg-white p-8 rounded-2xl shadow-md w-full max-w-sm">
+      <h1 class="text-2xl font-bold text-center mb-6">Connexion</h1>
+      <form id="login-form" class="space-y-4">
+        <div>
+          <label for="password" class="block text-sm font-medium text-gray-700">Mot de passe</label>
+          <input type="password" id="password" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" required>
+        </div>
+        <button type="submit" class="w-full bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition">
+          Se connecter
+        </button>
+        <p id="login-error" class="text-center text-sm text-red-600 hidden">Mot de passe incorrect.</p>
+      </form>
+    </div>
+  </div>
+
+  <!-- Main App Content (hidden by default) -->
+  <div id="appContent" class="hidden-content container mx-auto p-4 md:p-8 max-w-7xl">
     <!-- Header -->
     <header class="mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
       <div>
         <h1 class="text-3xl md:text-4xl font-bold text-gray-900">Financial Workbook</h1>
-        <p class="text-gray-500 mt-1">Track income, expenses, and transfers. Currency: MAD.</p>
+        <p class="text-gray-500 mt-1">Suivez les revenus, les dépenses et les transferts. Devise: MAD.</p>
+        <span id="userIdDisplay" class="text-xs text-gray-400"></span>
       </div>
       <div class="flex items-center gap-3">
-        <label class="text-sm text-gray-600">Month:</label>
+        <label class="text-sm text-gray-600">Mois:</label>
         <input id="monthPicker" type="month" class="px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
         <button id="manageCategoriesBtn" class="bg-white text-gray-700 font-semibold py-2 px-4 border border-gray-300 rounded-lg shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition">
-          Categories & Budgets
+          Catégories & Budgets
         </button>
       </div>
     </header>
@@ -37,14 +85,14 @@
       <div class="lg:col-span-1 space-y-6">
         <!-- Balances -->
         <section class="bg-white p-6 rounded-2xl shadow-md">
-          <h2 class="text-xl font-bold mb-4">Account Balances</h2>
+          <h2 class="text-xl font-bold mb-4">Soldes des comptes</h2>
           <div class="space-y-4">
             <div class="flex justify-between items-center p-4 bg-blue-50 rounded-lg">
-              <span class="font-semibold text-blue-800">Bank Balance</span>
+              <span class="font-semibold text-blue-800">Solde bancaire</span>
               <span id="bankBalance" class="font-bold text-lg text-blue-900">0,00 MAD</span>
             </div>
             <div class="flex justify-between items-center p-4 bg-green-50 rounded-lg">
-              <span class="font-semibold text-green-800">Cash on Hand</span>
+              <span class="font-semibold text-green-800">Argent liquide</span>
               <span id="cashBalance" class="font-bold text-lg text-green-900">0,00 MAD</span>
             </div>
           </div>
@@ -52,12 +100,12 @@
 
         <!-- Forms -->
         <section class="bg-white p-6 rounded-2xl shadow-md">
-          <h2 class="text-xl font-bold mb-4">Add New Transaction</h2>
+          <h2 class="text-xl font-bold mb-4">Ajouter une nouvelle transaction</h2>
           <!-- Tabs -->
           <div class="grid grid-cols-3 gap-2 mb-6 border-b border-gray-200">
-            <button id="tabBtnExpense"  class="tab-button text-sm font-semibold py-3 border-b-2 border-transparent">Expense</button>
-            <button id="tabBtnIncome"   class="tab-button text-sm font-semibold py-3 border-b-2 border-transparent">Income</button>
-            <button id="tabBtnTransfer" class="tab-button text-sm font-semibold py-3 border-b-2 border-transparent">Transfer</button>
+            <button id="tabBtnExpense" class="tab-button text-sm font-semibold py-3 border-b-2 border-transparent">Dépense</button>
+            <button id="tabBtnIncome" class="tab-button text-sm font-semibold py-3 border-b-2 border-transparent">Revenu</button>
+            <button id="tabBtnTransfer" class="tab-button text-sm font-semibold py-3 border-b-2 border-transparent">Transfert</button>
           </div>
 
           <!-- Expense Form -->
@@ -69,47 +117,37 @@
                   <input type="date" id="expense-date" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" required>
                 </div>
                 <div>
-                  <label for="expense-amount" class="block text-sm font-medium text-gray-700">Amount</label>
+                  <label for="expense-amount" class="block text-sm font-medium text-gray-700">Montant</label>
                   <input type="number" id="expense-amount" placeholder="0.00" min="0.01" step="0.01" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" required>
                 </div>
               </div>
               <div>
                 <label for="expense-description" class="block text-sm font-medium text-gray-700">Description</label>
-                <input type="text" id="expense-description" placeholder="e.g., Groceries" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" required>
+                <input type="text" id="expense-description" placeholder="e.g., Épicerie" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" required>
               </div>
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label for="expense-category" class="block text-sm font-medium text-gray-700">Category</label>
+                  <label for="expense-category" class="block text-sm font-medium text-gray-700">Catégorie</label>
                   <select id="expense-category" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"></select>
                 </div>
                 <div>
-                  <label class="block text-sm font-medium text-gray-700">Paid By</label>
+                  <label class="block text-sm font-medium text-gray-700">Payé par</label>
                   <div class="mt-2 flex gap-4">
                     <label class="flex items-center">
                       <input type="radio" name="expense-method" value="Bank" class="h-4 w-4 text-indigo-600 border-gray-300 focus:ring-indigo-500" checked>
-                      <span class="ml-2 text-sm">Bank</span>
+                      <span class="ml-2 text-sm">Banque</span>
                     </label>
                     <label class="flex items-center">
                       <input type="radio" name="expense-method" value="Cash" class="h-4 w-4 text-indigo-600 border-gray-300 focus:ring-indigo-500">
-                      <span class="ml-2 text-sm">Cash</span>
+                      <span class="ml-2 text-sm">Liquide</span>
                     </label>
                   </div>
                 </div>
               </div>
-              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label for="expense-note" class="block text-sm font-medium text-gray-700">Note (optional)</label>
-                  <input type="text" id="expense-note" placeholder="Add a note…" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
-                </div>
-                <div class="flex items-center mt-6">
-                  <input id="expense-recurring" type="checkbox" class="h-4 w-4 text-indigo-600 border-gray-300 focus:ring-indigo-500">
-                  <label for="expense-recurring" class="ml-2 text-sm text-gray-700">Recurring</label>
-                </div>
-              </div>
-              <p id="expense-alert" class="hidden text-sm text-red-600">Warning: this will exceed the monthly budget for this category.</p>
+              <p id="expense-alert" class="hidden text-sm text-red-600">Avertissement: cela dépassera le budget mensuel pour cette catégorie.</p>
               <div class="flex gap-3">
-                <button type="submit" class="flex-1 bg-red-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition">Add Expense</button>
-                <button id="quickWithdraw" type="button" class="px-4 py-2 bg-indigo-50 text-indigo-700 rounded-lg border border-indigo-200 hover:bg-indigo-100">Withdraw Cash</button>
+                <button type="submit" class="flex-1 bg-red-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition">Ajouter dépense</button>
+                <button id="quickWithdraw" type="button" class="px-4 py-2 bg-indigo-50 text-indigo-700 rounded-lg border border-indigo-200 hover:bg-indigo-100">Retirer de l'argent</button>
               </div>
             </form>
           </div>
@@ -123,44 +161,34 @@
                   <input type="date" id="income-date" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" required>
                 </div>
                 <div>
-                  <label for="income-amount" class="block text-sm font-medium text-gray-700">Amount</label>
+                  <label for="income-amount" class="block text-sm font-medium text-gray-700">Montant</label>
                   <input type="number" id="income-amount" placeholder="0.00" min="0.01" step="0.01" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" required>
                 </div>
               </div>
               <div>
                 <label for="income-description" class="block text-sm font-medium text-gray-700">Description</label>
-                <input type="text" id="income-description" placeholder="e.g., Salary" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" required>
+                <input type="text" id="income-description" placeholder="e.g., Salaire" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" required>
               </div>
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label for="income-category" class="block text-sm font-medium text-gray-700">Category</label>
+                  <label for="income-category" class="block text-sm font-medium text-gray-700">Catégorie</label>
                   <select id="income-category" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"></select>
                 </div>
                 <div>
-                  <label class="block text-sm font-medium text-gray-700">Received In</label>
+                  <label class="block text-sm font-medium text-gray-700">Reçu en</label>
                   <div class="mt-2 flex gap-4">
                     <label class="flex items-center">
                       <input type="radio" name="income-method" value="Bank" class="h-4 w-4 text-indigo-600 border-gray-300 focus:ring-indigo-500" checked>
-                      <span class="ml-2 text-sm">Bank</span>
+                      <span class="ml-2 text-sm">Banque</span>
                     </label>
                     <label class="flex items-center">
                       <input type="radio" name="income-method" value="Cash" class="h-4 w-4 text-indigo-600 border-gray-300 focus:ring-indigo-500">
-                      <span class="ml-2 text-sm">Cash</span>
+                      <span class="ml-2 text-sm">Liquide</span>
                     </label>
                   </div>
                 </div>
               </div>
-              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label for="income-note" class="block text-sm font-medium text-gray-700">Note (optional)</label>
-                  <input type="text" id="income-note" placeholder="Add a note…" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
-                </div>
-                <div class="flex items-center mt-6">
-                  <input id="income-recurring" type="checkbox" class="h-4 w-4 text-indigo-600 border-gray-300 focus:ring-indigo-500">
-                  <label for="income-recurring" class="ml-2 text-sm text-gray-700">Recurring</label>
-                </div>
-              </div>
-              <button type="submit" class="w-full bg-green-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition">Add Income</button>
+              <button type="submit" class="w-full bg-green-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition">Ajouter revenu</button>
             </form>
           </div>
 
@@ -173,31 +201,27 @@
                   <input type="date" id="transfer-date" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" required>
                 </div>
                 <div>
-                  <label for="transfer-amount" class="block text-sm font-medium text-gray-700">Amount</label>
+                  <label for="transfer-amount" class="block text-sm font-medium text-gray-700">Montant</label>
                   <input type="number" id="transfer-amount" placeholder="0.00" min="0.01" step="0.01" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" required>
                 </div>
                 <div class="grid grid-cols-2 gap-2">
                   <div>
-                    <label for="transfer-from" class="block text-sm font-medium text-gray-700">From</label>
+                    <label for="transfer-from" class="block text-sm font-medium text-gray-700">De</label>
                     <select id="transfer-from" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
-                      <option value="Bank">Bank</option>
-                      <option value="Cash">Cash</option>
+                      <option value="Bank">Banque</option>
+                      <option value="Cash">Liquide</option>
                     </select>
                   </div>
                   <div>
-                    <label for="transfer-to" class="block text-sm font-medium text-gray-700">To</label>
+                    <label for="transfer-to" class="block text-sm font-medium text-gray-700">À</label>
                     <select id="transfer-to" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" disabled>
-                      <option value="Cash">Cash</option>
-                      <option value="Bank">Bank</option>
+                      <option value="Cash">Liquide</option>
+                      <option value="Bank">Banque</option>
                     </select>
                   </div>
                 </div>
               </div>
-              <div>
-                <label for="transfer-note" class="block text-sm font-medium text-gray-700">Note (optional)</label>
-                <input type="text" id="transfer-note" placeholder="Add a note…" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
-              </div>
-              <button type="submit" class="w-full bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition">Add Transfer</button>
+              <button type="submit" class="w-full bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition">Ajouter transfert</button>
             </form>
           </div>
         </section>
@@ -205,12 +229,40 @@
 
       <!-- Right Column: History & Reports -->
       <div class="lg:col-span-2 space-y-6">
+        <!-- Monthly Summary -->
+        <section class="bg-white p-6 rounded-2xl shadow-md">
+          <h2 class="text-xl font-bold mb-4">Résumé mensuel</h2>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="p-4 bg-green-50 rounded-lg text-center">
+              <span class="font-semibold text-green-800">Total revenus</span>
+              <p id="totalIncome" class="font-bold text-lg text-green-900 mt-1">0,00 MAD</p>
+            </div>
+            <div class="p-4 bg-red-50 rounded-lg text-center">
+              <span class="font-semibold text-red-800">Total dépenses</span>
+              <p id="totalExpense" class="font-bold text-lg text-red-900 mt-1">0,00 MAD</p>
+            </div>
+            <div class="p-4 bg-blue-50 rounded-lg text-center">
+              <span class="font-semibold text-blue-800">Solde du mois</span>
+              <p id="monthlyBalance" class="font-bold text-lg text-blue-900 mt-1">0,00 MAD</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- Transaction History -->
         <section class="bg-white p-6 rounded-2xl shadow-md">
           <div class="flex items-center justify-between mb-4">
-            <h2 class="text-xl font-bold">Transaction History</h2>
+            <h2 class="text-xl font-bold">Historique des transactions</h2>
             <div class="flex items-center gap-3">
-              <button id="exportBtn" class="px-3 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50">Export JSON</button>
-              <button id="resetBtn" class="px-3 py-2 border border-red-300 text-red-700 rounded-lg text-sm hover:bg-red-50">Reset Data</button>
+              <div class="relative">
+                <button id="exportBtn" class="px-3 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50">Exporter</button>
+                <div id="exportDropdown" class="hidden absolute right-0 mt-2 w-40 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-10">
+                  <div class="py-1" role="menu" aria-orientation="vertical" aria-labelledby="exportBtn">
+                    <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" role="menuitem" data-format="json">JSON</a>
+                    <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" role="menuitem" data-format="xlsx">Excel</a>
+                  </div>
+                </div>
+              </div>
+              <button id="resetBtn" class="px-3 py-2 border border-red-300 text-red-700 rounded-lg text-sm hover:bg-red-50">Réinitialiser les données</button>
             </div>
           </div>
           <div class="overflow-x-auto">
@@ -219,16 +271,21 @@
                 <tr>
                   <th class="px-6 py-3">Date</th>
                   <th class="px-6 py-3">Description</th>
-                  <th class="px-6 py-3">Category</th>
+                  <th class="px-6 py-3">Catégorie</th>
                   <th class="px-6 py-3">Type</th>
-                  <th class="px-6 py-3">Method</th>
-                  <th class="px-6 py-3">Note</th>
-                  <th class="px-6 py-3 text-right">Amount</th>
+                  <th class="px-6 py-3">Méthode</th>
+                  <th class="px-6 py-3 text-right">Montant</th>
+                  <th class="px-6 py-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody id="transaction-list">
                 <tr class="bg-white border-b">
-                  <td colspan="7" class="px-6 py-12 text-center text-gray-400">No transactions yet.</td>
+                  <td colspan="7" class="px-6 py-12 text-center text-gray-400">
+                    <div class="flex justify-center items-center">
+                      <div class="loading-spinner"></div>
+                      <span class="ml-2">Chargement des transactions...</span>
+                    </div>
+                  </td>
                 </tr>
               </tbody>
             </table>
@@ -237,20 +294,23 @@
 
         <!-- Reports -->
         <section class="bg-white p-6 rounded-2xl shadow-md">
-          <h2 class="text-xl font-bold mb-4">Monthly Category Report</h2>
-          <div class="overflow-x-auto">
+          <h2 class="text-xl font-bold mb-4">Rapport mensuel par catégorie</h2>
+          <div id="chart-container">
+            <canvas id="budgetChart"></canvas>
+          </div>
+          <div class="overflow-x-auto mt-6">
             <table class="w-full text-sm text-left text-gray-500">
               <thead class="text-xs text-gray-700 uppercase bg-gray-50">
                 <tr>
-                  <th class="px-6 py-3">Category</th>
+                  <th class="px-6 py-3">Catégorie</th>
                   <th class="px-6 py-3 text-right">Budget</th>
-                  <th class="px-6 py-3 text-right">Spent</th>
-                  <th class="px-6 py-3 text-right">Remaining</th>
+                  <th class="px-6 py-3 text-right">Dépensé</th>
+                  <th class="px-6 py-3 text-right">Restant</th>
                 </tr>
               </thead>
               <tbody id="report-body">
                 <tr class="bg-white border-b">
-                  <td colspan="4" class="px-6 py-12 text-center text-gray-400">No expenses this month.</td>
+                  <td colspan="4" class="px-6 py-12 text-center text-gray-400">Aucune dépense ce mois-ci.</td>
                 </tr>
               </tbody>
             </table>
@@ -269,22 +329,22 @@
         <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
           <div class="sm:flex sm:items-start">
             <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
-              <h3 class="text-lg leading-6 font-medium text-gray-900" id="modal-title">Categories & Monthly Budgets</h3>
+              <h3 class="text-lg leading-6 font-medium text-gray-900" id="modal-title">Catégories & Budgets mensuels</h3>
               <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-6">
                 <!-- Expense Categories -->
                 <div>
-                  <h4 class="font-semibold mb-2">Expense Categories</h4>
+                  <h4 class="font-semibold mb-2">Catégories de dépenses</h4>
                   <form id="add-expense-category-form" class="flex gap-2 mb-3">
-                    <input type="text" id="new-expense-category" placeholder="New category" class="block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" required>
+                    <input type="text" id="new-expense-category" placeholder="Nouvelle catégorie" class="block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" required>
                     <button type="submit" class="bg-red-600 text-white px-3 py-2 rounded-md hover:bg-red-700 text-sm font-semibold">+</button>
                   </form>
                   <ul id="expense-category-list" class="space-y-2 max-h-64 overflow-y-auto"></ul>
                 </div>
                 <!-- Income Categories -->
                 <div>
-                  <h4 class="font-semibold mb-2">Income Categories</h4>
+                  <h4 class="font-semibold mb-2">Catégories de revenus</h4>
                   <form id="add-income-category-form" class="flex gap-2 mb-3">
-                    <input type="text" id="new-income-category" placeholder="New category" class="block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" required>
+                    <input type="text" id="new-income-category" placeholder="Nouvelle catégorie" class="block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" required>
                     <button type="submit" class="bg-green-600 text-white px-3 py-2 rounded-md hover:bg-green-700 text-sm font-semibold">+</button>
                   </form>
                   <ul id="income-category-list" class="space-y-2 max-h-64 overflow-y-auto"></ul>
@@ -294,233 +354,680 @@
           </div>
         </div>
         <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-          <button type="button" id="closeModalBtn" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">Close</button>
+          <button type="button" id="closeModalBtn" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">Fermer</button>
         </div>
       </div>
     </div>
   </div>
 
-  <script>
-    document.addEventListener('DOMContentLoaded', () => {
-      // --- STATE ---
-      let transactions = JSON.parse(localStorage.getItem('transactions')) || [];
-      let expenseCategories = JSON.parse(localStorage.getItem('expenseCategories')) || ['Food','Transport','Housing','Utilities','Entertainment','Other'];
-      let incomeCategories  = JSON.parse(localStorage.getItem('incomeCategories'))  || ['Salary','Freelance','Investment','Gift','Other'];
-      let budgets = JSON.parse(localStorage.getItem('budgets')) || {}; // { category: monthlyBudgetMAD }
+  <!-- Edit Transaction Modal -->
+  <div id="editModal" class="fixed inset-0 z-20 overflow-y-auto hidden" aria-labelledby="edit-modal-title" role="dialog" aria-modal="true">
+    <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+      <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true"></div>
+      <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+      <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+        <form id="edit-form" class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+          <h3 class="text-lg leading-6 font-medium text-gray-900 mb-4" id="edit-modal-title">Modifier la transaction</h3>
+          <input type="hidden" id="edit-id">
+          <div class="space-y-4">
+            <div>
+              <label for="edit-date" class="block text-sm font-medium text-gray-700">Date</label>
+              <input type="date" id="edit-date" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm" required>
+            </div>
+            <div>
+              <label for="edit-description" class="block text-sm font-medium text-gray-700">Description</label>
+              <input type="text" id="edit-description" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm" required>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label for="edit-amount" class="block text-sm font-medium text-gray-700">Montant</label>
+                <input type="number" id="edit-amount" min="0.01" step="0.01" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm" required>
+              </div>
+              <div>
+                <label for="edit-category" class="block text-sm font-medium text-gray-700">Catégorie</label>
+                <select id="edit-category" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm"></select>
+              </div>
+            </div>
+            <div>
+              <label for="edit-method" class="block text-sm font-medium text-gray-700">Méthode</label>
+              <select id="edit-method" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm"></select>
+            </div>
+          </div>
+          <div class="mt-5 sm:mt-6 flex justify-end gap-3">
+            <button type="button" id="closeEditModalBtn" class="inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:text-sm">Annuler</button>
+            <button type="submit" class="inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:text-sm">Enregistrer</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
 
-      // --- ELEMENTS ---
-      const expenseForm = document.getElementById('expense-form');
-      const incomeForm  = document.getElementById('income-form');
-      const transferForm= document.getElementById('transfer-form');
+  <!-- Custom Alert/Confirm Modal -->
+  <div id="confirmModal" class="fixed inset-0 z-20 overflow-y-auto hidden">
+    <div class="flex items-center justify-center min-h-screen px-4 text-center">
+      <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true"></div>
+      <div class="bg-white rounded-lg overflow-hidden shadow-xl transform transition-all sm:max-w-lg sm:w-full p-6">
+        <h3 id="confirmTitle" class="text-lg leading-6 font-medium text-gray-900 mb-4">Confirmation</h3>
+        <p id="confirmMessage" class="text-sm text-gray-500 mb-6"></p>
+        <div class="flex justify-end gap-3">
+          <button id="cancelBtn" type="button" class="mt-3 inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:text-sm">Annuler</button>
+          <button id="confirmBtn" type="button" class="inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:text-sm">Confirmer</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
-      const expenseCategorySelect = document.getElementById('expense-category');
-      const incomeCategorySelect  = document.getElementById('income-category');
+  <!-- Rename Category Modal -->
+  <div id="renameModal" class="fixed inset-0 z-30 overflow-y-auto hidden">
+    <div class="flex items-center justify-center min-h-screen px-4 text-center">
+      <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true"></div>
+      <div class="bg-white rounded-lg overflow-hidden shadow-xl transform transition-all sm:max-w-md sm:w-full p-6">
+        <form id="rename-form">
+          <h3 class="text-lg leading-6 font-medium text-gray-900 mb-4">Renommer la catégorie</h3>
+          <input type="hidden" id="rename-original-name">
+          <input type="hidden" id="rename-type">
+          <div class="space-y-4">
+            <div>
+              <label for="rename-new-name" class="block text-sm font-medium text-gray-700">Nouveau nom</label>
+              <input type="text" id="rename-new-name" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm" required>
+            </div>
+          </div>
+          <div class="mt-5 sm:mt-6 flex justify-end gap-3">
+            <button type="button" id="closeRenameModalBtn" class="inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50">Annuler</button>
+            <button type="submit" class="inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700">Enregistrer</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
 
-      const bankBalanceEl = document.getElementById('bankBalance');
-      const cashBalanceEl = document.getElementById('cashBalance');
-      const transactionListEl = document.getElementById('transaction-list');
-      const reportBodyEl = document.getElementById('report-body');
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, collection, query, onSnapshot, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, runTransaction, getDocs, where } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-      const tabs = [
-        { btn: document.getElementById('tabBtnExpense'), form: document.getElementById('formExpense') },
-        { btn: document.getElementById('tabBtnIncome'),  form: document.getElementById('formIncome') },
-        { btn: document.getElementById('tabBtnTransfer'),form: document.getElementById('formTransfer') }
-      ];
+    // Global variables (provided by the canvas environment)
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+    const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+    const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
-      const transferFromEl = document.getElementById('transfer-from');
-      const transferToEl   = document.getElementById('transfer-to');
+    let app;
+    let db;
+    let auth;
+    let userId;
+    let transactions = [];
+    let expenseCategories = [];
+    let incomeCategories = [];
+    let budgets = {};
+    let unsubscribeTransactions;
+    let unsubscribeCategories;
+    let chartInstance = null;
+    
+    // --- Login Logic ---
+    const loginForm = document.getElementById('login-form');
+    const passwordInput = document.getElementById('password');
+    const loginError = document.getElementById('login-error');
+    const loginPage = document.getElementById('loginPage');
+    const appContent = document.getElementById('appContent');
+    const correctPassword = '1313'; // <<<<< Change this to your desired password!
 
-      const categoryModal = document.getElementById('categoryModal');
-      const manageCategoriesBtn = document.getElementById('manageCategoriesBtn');
-      const closeModalBtn = document.getElementById('closeModalBtn');
-      const modalBackdrop = document.getElementById('modalBackdrop');
-      const addExpenseCategoryForm = document.getElementById('add-expense-category-form');
-      const addIncomeCategoryForm  = document.getElementById('add-income-category-form');
-      const newExpenseCategoryInput = document.getElementById('new-expense-category');
-      const newIncomeCategoryInput  = document.getElementById('new-income-category');
-      const expenseCategoryList = document.getElementById('expense-category-list');
-      const incomeCategoryList  = document.getElementById('income-category-list');
-
-      const expenseAmountEl = document.getElementById('expense-amount');
-      const expenseAlertEl  = document.getElementById('expense-alert');
-      const quickWithdrawBtn= document.getElementById('quickWithdraw');
-
-      const monthPicker = document.getElementById('monthPicker');
-      const exportBtn   = document.getElementById('exportBtn');
-      const resetBtn    = document.getElementById('resetBtn');
-
-      // --- HELPERS ---
-      const fmtMAD = (x) => new Intl.NumberFormat('fr-MA', { style:'currency', currency:'MAD' }).format(x || 0);
-
-      const todayISO = () => {
-        const d = new Date();
-        const tzOffset = d.getTimezoneOffset(); // keep local date
-        const local = new Date(d.getTime() - tzOffset * 60000);
-        return local.toISOString().slice(0,10);
-      };
-
-      const monthKeyFromInput = (yyyyMmStr) => {
-        // yyyy-mm -> "YYYY-MM"
-        return yyyyMmStr || new Date().toISOString().slice(0,7);
-      };
-
-      const monthRange = (yyyyMm) => {
-        const [y,m] = yyyyMm.split('-').map(Number);
-        const start = new Date(y, m-1, 1);
-        const end   = new Date(y, m, 1); // exclusive
-        return { start, end };
-      };
-
-      const isInMonth = (isoDate, yyyyMm) => {
-        const { start, end } = monthRange(yyyyMm);
-        const d = new Date(isoDate);
-        return d >= start && d < end;
-      };
-
-      function saveAll() {
-        localStorage.setItem('transactions', JSON.stringify(transactions));
-        localStorage.setItem('expenseCategories', JSON.stringify(expenseCategories));
-        localStorage.setItem('incomeCategories', JSON.stringify(incomeCategories));
-        localStorage.setItem('budgets', JSON.stringify(budgets));
+    loginForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      if (passwordInput.value === correctPassword) {
+        loginPage.classList.add('hidden');
+        appContent.classList.remove('hidden-content');
+        initializeFirebase();
+      } else {
+        loginError.classList.remove('hidden');
       }
+    });
 
-      // --- CATEGORY MODAL RENDER/EDIT ---
-      function renderCategoryLists() {
-        // Expense list with budget inputs + delete
-        expenseCategoryList.innerHTML = '';
-        expenseCategories.forEach(cat => {
-          const li = document.createElement('li');
-          li.className = 'flex items-center justify-between bg-gray-100 p-2 rounded-md gap-2';
-          const label = document.createElement('span');
-          label.textContent = cat;
+    // --- ELEMENTS ---
+    const expenseForm = document.getElementById('expense-form');
+    const incomeForm  = document.getElementById('income-form');
+    const transferForm= document.getElementById('transfer-form');
 
-          const budgetWrap = document.createElement('div');
-          budgetWrap.className = 'flex items-center gap-2';
-          const input = document.createElement('input');
-          input.type = 'number';
-          input.step = '0.01';
-          input.min = '0';
-          input.placeholder = 'Budget MAD/mo';
-          input.value = budgets[cat] ?? '';
-          input.className = 'w-32 px-2 py-1 text-sm bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500';
-          input.onchange = () => { budgets[cat] = input.value ? parseFloat(input.value) : undefined; saveAll(); render(); };
+    const expenseCategorySelect = document.getElementById('expense-category');
+    const incomeCategorySelect  = document.getElementById('income-category');
 
-          const delBtn = document.createElement('button');
-          delBtn.className = 'text-red-500 hover:text-red-700 font-bold';
-          delBtn.innerHTML = '&times;';
-          delBtn.onclick = () => { expenseCategories = expenseCategories.filter(c => c !== cat); delete budgets[cat]; saveAll(); render(); };
+    const bankBalanceEl = document.getElementById('bankBalance');
+    const cashBalanceEl = document.getElementById('cashBalance');
+    const transactionListEl = document.getElementById('transaction-list');
+    const reportBodyEl = document.getElementById('report-body');
 
-          budgetWrap.appendChild(input);
-          li.appendChild(label);
-          li.appendChild(budgetWrap);
-          li.appendChild(delBtn);
-          expenseCategoryList.appendChild(li);
-        });
+    const tabs = [
+      { btn: document.getElementById('tabBtnExpense'), form: document.getElementById('formExpense') },
+      { btn: document.getElementById('tabBtnIncome'),  form: document.getElementById('formIncome') },
+      { btn: document.getElementById('tabBtnTransfer'),form: document.getElementById('formTransfer') }
+    ];
 
-        // Income list with delete (no budgets for income)
-        incomeCategoryList.innerHTML = '';
-        incomeCategories.forEach(cat => {
-          const li = document.createElement('li');
-          li.className = 'flex items-center justify-between bg-gray-100 p-2 rounded-md';
-          const label = document.createElement('span');
-          label.textContent = cat;
-          const delBtn = document.createElement('button');
-          delBtn.className = 'text-red-500 hover:text-red-700 font-bold';
-          delBtn.innerHTML = '&times;';
-          delBtn.onclick = () => { incomeCategories = incomeCategories.filter(c => c !== cat); saveAll(); render(); };
-          li.appendChild(label);
-          li.appendChild(delBtn);
-          incomeCategoryList.appendChild(li);
-        });
-      }
+    const transferFromEl = document.getElementById('transfer-from');
+    const transferToEl   = document.getElementById('transfer-to');
 
-      function populateCategoryDropdown(selectElement, categories) {
-        selectElement.innerHTML = '';
-        categories.forEach(cat => {
-          const option = document.createElement('option');
-          option.value = cat;
-          option.textContent = cat;
-          selectElement.appendChild(option);
-        });
-      }
+    const categoryModal = document.getElementById('categoryModal');
+    const manageCategoriesBtn = document.getElementById('manageCategoriesBtn');
+    const closeModalBtn = document.getElementById('closeModalBtn');
+    const modalBackdrop = document.getElementById('modalBackdrop');
+    const addExpenseCategoryForm = document.getElementById('add-expense-category-form');
+    const addIncomeCategoryForm  = document.getElementById('add-income-category-form');
+    const newExpenseCategoryInput = document.getElementById('new-expense-category');
+    const newIncomeCategoryInput  = document.getElementById('new-income-category');
+    const expenseCategoryList = document.getElementById('expense-category-list');
+    const incomeCategoryList  = document.getElementById('income-category-list');
 
-      // --- RENDER TRANSACTIONS / BALANCES / REPORTS ---
-      function renderTransactions() {
-        const yyyyMm = monthKeyFromInput(monthPicker.value);
-        const filtered = transactions.filter(t => isInMonth(t.date, yyyyMm));
-        transactionListEl.innerHTML = '';
+    const expenseAmountEl = document.getElementById('expense-amount');
+    const expenseAlertEl  = document.getElementById('expense-alert');
+    const quickWithdrawBtn= document.getElementById('quickWithdraw');
 
-        if (filtered.length === 0) {
-          transactionListEl.innerHTML = '<tr class="bg-white border-b"><td colspan="7" class="px-6 py-12 text-center text-gray-400">No transactions this month.</td></tr>';
-          return;
-        }
+    const monthPicker = document.getElementById('monthPicker');
+    const exportBtn   = document.getElementById('exportBtn');
+    const exportDropdown = document.getElementById('exportDropdown');
+    const resetBtn    = document.getElementById('resetBtn');
+    const userIdDisplay = document.getElementById('userIdDisplay');
 
-        const sorted = [...filtered].sort((a,b) => new Date(b.date) - new Date(a.date));
-        sorted.forEach(t => {
-          const tr = document.createElement('tr');
-          tr.className = 'bg-white border-b hover:bg-gray-50';
+    const confirmModal = document.getElementById('confirmModal');
+    const confirmTitle = document.getElementById('confirmTitle');
+    const confirmMessage = document.getElementById('confirmMessage');
+    const confirmBtn = document.getElementById('confirmBtn');
+    const cancelBtn = document.getElementById('cancelBtn');
 
-          const method = t.type === 'transfer' ? `${t.from}→${t.to}` : (t.method || '-');
-          let amountCell = '';
-          if (t.type === 'income')      amountCell = `<td class="px-6 py-4 font-semibold text-green-600 text-right">+${fmtMAD(t.amount)}</td>`;
-          else if (t.type === 'expense')amountCell = `<td class="px-6 py-4 font-semibold text-red-600 text-right">-${fmtMAD(t.amount)}</td>`;
-          else                          amountCell = `<td class="px-6 py-4 font-semibold text-indigo-600 text-right">${fmtMAD(t.amount)}</td>`;
+    // Edit Modal Elements
+    const editModal = document.getElementById('editModal');
+    const editForm = document.getElementById('edit-form');
+    const closeEditModalBtn = document.getElementById('closeEditModalBtn');
+    const editIdInput = document.getElementById('edit-id');
+    const editDateInput = document.getElementById('edit-date');
+    const editDescriptionInput = document.getElementById('edit-description');
+    const editAmountInput = document.getElementById('edit-amount');
+    const editCategorySelect = document.getElementById('edit-category');
+    const editMethodSelect = document.getElementById('edit-method');
 
-          tr.innerHTML = `
-            <td class="px-6 py-4 text-gray-500">${new Date(t.date).toLocaleDateString()}</td>
-            <td class="px-6 py-4 font-medium text-gray-900">${t.description}</td>
-            <td class="px-6 py-4">${t.category || '-'}</td>
-            <td class="px-6 py-4 capitalize">${t.type}</td>
-            <td class="px-6 py-4">${method}</td>
-            <td class="px-6 py-4 text-gray-500">${t.note || ''}${t.recurring ? ' • Recurring' : ''}</td>
-            ${amountCell}
-          `;
-          transactionListEl.appendChild(tr);
-        });
-      }
+    // Rename Modal Elements
+    const renameModal = document.getElementById('renameModal');
+    const renameForm = document.getElementById('rename-form');
+    const closeRenameModalBtn = document.getElementById('closeRenameModalBtn');
+    const renameOriginalNameInput = document.getElementById('rename-original-name');
+    const renameNewNameInput = document.getElementById('rename-new-name');
+    const renameTypeInput = document.getElementById('rename-type');
 
-      function updateBalances() {
-        let bank = 0, cash = 0;
-        transactions.forEach(t => {
-          switch (t.type) {
-            case 'income':
-              if (t.method === 'Bank') bank += t.amount;
-              if (t.method === 'Cash') cash += t.amount;
-              break;
-            case 'expense':
-              if (t.method === 'Bank') bank -= t.amount;
-              if (t.method === 'Cash') cash -= t.amount;
-              break;
-            case 'transfer':
-              if (t.from === 'Bank') bank -= t.amount;
-              if (t.from === 'Cash') cash -= t.amount;
-              if (t.to === 'Bank') bank += t.amount;
-              if (t.to === 'Cash') cash += t.amount;
-              break;
+    // Monthly Summary Elements
+    const totalIncomeEl = document.getElementById('totalIncome');
+    const totalExpenseEl = document.getElementById('totalExpense');
+    const monthlyBalanceEl = document.getElementById('monthlyBalance');
+
+    // --- FIREBASE INIT & AUTH ---
+    function initializeFirebase() {
+      try {
+        app = initializeApp(firebaseConfig);
+        db = getFirestore(app);
+        auth = getAuth(app);
+
+        onAuthStateChanged(auth, async (user) => {
+          if (user) {
+            userId = user.uid;
+            userIdDisplay.textContent = `ID utilisateur: ${userId}`;
+            console.log("Authenticated with UID:", userId);
+            await setupFirestoreListeners();
+          } else {
+            console.log("No user authenticated, signing in anonymously...");
+            // Use provided token for sign-in or anonymous if not available
+            if (initialAuthToken) {
+              await signInWithCustomToken(auth, initialAuthToken);
+            } else {
+              await signInAnonymously(auth);
+            }
           }
         });
-        bankBalanceEl.textContent = fmtMAD(bank);
-        cashBalanceEl.textContent = fmtMAD(cash);
+      } catch (error) {
+        console.error("Error initializing Firebase:", error);
+      }
+    }
+
+    // --- HELPERS ---
+    const fmtMAD = (x) => new Intl.NumberFormat('fr-MA', { style:'currency', currency:'MAD' }).format(x || 0);
+
+    const todayISO = () => {
+      const d = new Date();
+      const tzOffset = d.getTimezoneOffset();
+      const local = new Date(d.getTime() - tzOffset * 60000);
+      return local.toISOString().slice(0,10);
+    };
+
+    const monthKeyFromInput = (yyyyMmStr) => {
+      return yyyyMmStr || new Date().toISOString().slice(0,7);
+    };
+
+    const isInMonth = (isoDate, yyyyMm) => {
+        if (!isoDate || !yyyyMm) return false;
+        return isoDate.startsWith(yyyyMm);
+    };
+
+    function showConfirmModal(title, message, onConfirm) {
+      confirmTitle.textContent = title;
+      confirmMessage.textContent = message;
+      confirmModal.classList.remove('hidden');
+
+      const handleConfirm = () => {
+        onConfirm();
+        confirmModal.classList.add('hidden');
+        confirmBtn.removeEventListener('click', handleConfirm);
+        cancelBtn.removeEventListener('click', handleCancel);
+      };
+      const handleCancel = () => {
+        confirmModal.classList.add('hidden');
+        confirmBtn.removeEventListener('click', handleConfirm);
+        cancelBtn.removeEventListener('click', handleCancel);
+      };
+
+      confirmBtn.addEventListener('click', handleConfirm);
+      cancelBtn.addEventListener('click', handleCancel);
+    }
+
+    function showEditModal(transaction) {
+      editIdInput.value = transaction.id;
+      editDateInput.value = transaction.date;
+      editDescriptionInput.value = transaction.description;
+      editAmountInput.value = transaction.amount;
+
+      // Populate category dropdown
+      const allCategories = [...expenseCategories, ...incomeCategories].filter((v, i, a) => a.indexOf(v) === i);
+      populateCategoryDropdown(editCategorySelect, allCategories);
+      editCategorySelect.value = transaction.category || '';
+
+      // Populate method dropdown
+      editMethodSelect.innerHTML = '';
+      if (transaction.type === 'transfer') {
+        const fromOption = document.createElement('option');
+        fromOption.value = transaction.from;
+        fromOption.textContent = transaction.from;
+        const toOption = document.createElement('option');
+        toOption.value = transaction.to;
+        toOption.textContent = transaction.to;
+        editMethodSelect.appendChild(fromOption);
+        editMethodSelect.appendChild(toOption);
+        editMethodSelect.disabled = true;
+      } else {
+        const bankOption = document.createElement('option');
+        bankOption.value = 'Bank';
+        bankOption.textContent = 'Bank';
+        const cashOption = document.createElement('option');
+        cashOption.value = 'Cash';
+        cashOption.textContent = 'Cash';
+        editMethodSelect.appendChild(bankOption);
+        editMethodSelect.appendChild(cashOption);
+        editMethodSelect.value = transaction.method || '';
+        editMethodSelect.disabled = false;
       }
 
-      function renderReport() {
-        const yyyyMm = monthKeyFromInput(monthPicker.value);
-        // Sum expenses by category for the selected month
-        const sums = {};
-        transactions.forEach(t => {
-          if (t.type === 'expense' && isInMonth(t.date, yyyyMm)) {
-            sums[t.category] = (sums[t.category] || 0) + t.amount;
+      editModal.classList.remove('hidden');
+    }
+
+    // --- FIREBASE OPS ---
+    const getTransactionsCollection = () => collection(db, `artifacts/${appId}/users/${userId}/transactions`);
+    const getCategoriesDoc = () => doc(db, `artifacts/${appId}/users/${userId}/categories`, "appCategories");
+
+    async function addTransaction(data) {
+      try {
+        const docRef = await addDoc(getTransactionsCollection(), data);
+        console.log("Transaction added with ID:", docRef.id);
+      } catch (e) {
+        console.error("Error adding document: ", e);
+      }
+    }
+
+    async function deleteTransaction(transactionId) {
+      try {
+        await deleteDoc(doc(getTransactionsCollection(), transactionId));
+        console.log("Transaction deleted with ID:", transactionId);
+      } catch (e) {
+        console.error("Error deleting document: ", e);
+      }
+    }
+
+    async function editTransaction(transactionId, updatedData) {
+      try {
+        await updateDoc(doc(getTransactionsCollection(), transactionId), updatedData);
+        console.log("Transaction updated with ID:", transactionId);
+      } catch (e) {
+        console.error("Error updating document: ", e);
+      }
+    }
+
+    async function renameCategory(originalName, newName, type) {
+      if (originalName === newName) return;
+      try {
+        await runTransaction(db, async (t) => {
+          // Update transactions
+          const q = query(getTransactionsCollection(), where("category", "==", originalName));
+          const querySnapshot = await getDocs(q);
+          querySnapshot.forEach(doc => {
+            t.update(doc.ref, { category: newName });
+          });
+
+          // Update categories and budgets
+          const categoriesDocRef = getCategoriesDoc();
+          const categoriesDoc = await t.get(categoriesDocRef);
+          if (categoriesDoc.exists()) {
+            const data = categoriesDoc.data();
+            const newCategories = type === 'expense'
+              ? data.expenseCategories.map(c => c === originalName ? newName : c)
+              : data.incomeCategories.map(c => c === originalName ? newName : c);
+            const updatedData = type === 'expense' ? { expenseCategories: newCategories } : { incomeCategories: newCategories };
+
+            // Handle budget update for expense categories
+            if (type === 'expense') {
+              const newBudgets = { ...data.budgets };
+              if (newBudgets[originalName] !== undefined) {
+                newBudgets[newName] = newBudgets[originalName];
+                delete newBudgets[originalName];
+              }
+              updatedData.budgets = newBudgets;
+            }
+            t.update(categoriesDocRef, updatedData);
           }
         });
-        const cats = Object.keys({ ...sums, ...budgets });
+        console.log(`Category "${originalName}" renamed to "${newName}" successfully.`);
+      } catch (e) {
+        console.error("Transaction failed to rename category: ", e);
+      }
+    }
 
-        reportBodyEl.innerHTML = '';
-        if (cats.length === 0) {
-          reportBodyEl.innerHTML = '<tr class="bg-white border-b"><td colspan="4" class="px-6 py-12 text-center text-gray-400">No expenses this month.</td></tr>';
-          return;
+    async function saveCategoriesAndBudgets() {
+      try {
+        await setDoc(getCategoriesDoc(), {
+          expenseCategories: expenseCategories,
+          incomeCategories: incomeCategories,
+          budgets: budgets
+        });
+        console.log("Categories and budgets saved.");
+      } catch (e) {
+        console.error("Error saving categories: ", e);
+      }
+    }
+
+    async function resetData() {
+      showConfirmModal(
+        'Réinitialiser les données',
+        'Cela effacera toutes les transactions, catégories et budgets. Êtes-vous sûr ?',
+        async () => {
+          try {
+            await runTransaction(db, async (transaction) => {
+              const q = query(getTransactionsCollection());
+              const querySnapshot = await getDocs(q);
+              querySnapshot.forEach(doc => {
+                transaction.delete(doc.ref);
+              });
+              const categoriesDocRef = getCategoriesDoc();
+              const categoriesDoc = await transaction.get(categoriesDocRef);
+              if (categoriesDoc.exists()) {
+                transaction.delete(categoriesDocRef);
+              }
+            });
+            console.log("All data reset.");
+          } catch (e) {
+            console.error("Transaction failed: ", e);
+          }
         }
+      );
+    }
 
-        cats.sort().forEach(cat => {
+    // --- LISTENERS ---
+    async function setupFirestoreListeners() {
+      if (unsubscribeTransactions) unsubscribeTransactions();
+      if (unsubscribeCategories) unsubscribeCategories();
+
+      // Listen to transactions
+      unsubscribeTransactions = onSnapshot(getTransactionsCollection(), (snapshot) => {
+        transactions = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+        render();
+      }, (error) => {
+        console.error("Error listening to transactions:", error);
+      });
+
+      // Listen to categories and budgets
+      unsubscribeCategories = onSnapshot(getCategoriesDoc(), (docSnapshot) => {
+        if (docSnapshot.exists()) {
+          const data = docSnapshot.data();
+          expenseCategories = data.expenseCategories || [];
+          incomeCategories = data.incomeCategories || [];
+          budgets = data.budgets || {};
+        } else {
+          // Initialize with defaults if doc doesn't exist
+          expenseCategories = ['Food','Transport','Housing','Utilities','Entertainment','Other'];
+          incomeCategories = ['Salary','Freelance','Investment','Gift','Other'];
+          budgets = {};
+          saveCategoriesAndBudgets(); // Save defaults
+        }
+        render();
+      }, (error) => {
+        console.error("Error listening to categories:", error);
+      });
+    }
+
+    // --- CATEGORY MODAL RENDER/EDIT ---
+    function renderCategoryLists() {
+      // Expense list with budget inputs + delete + rename
+      expenseCategoryList.innerHTML = '';
+      expenseCategories.forEach(cat => {
+        const li = document.createElement('li');
+        li.className = 'flex items-center justify-between bg-gray-100 p-2 rounded-md gap-2';
+
+        const nameSpan = document.createElement('span');
+        nameSpan.textContent = cat;
+        nameSpan.className = 'font-medium text-gray-800';
+
+        const budgetWrap = document.createElement('div');
+        budgetWrap.className = 'flex items-center gap-2';
+        const input = document.createElement('input');
+        input.type = 'number';
+        input.step = '0.01';
+        input.min = '0';
+        input.placeholder = 'Budget MAD/mois';
+        input.value = budgets[cat] ?? '';
+        input.className = 'w-32 px-2 py-1 text-sm bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500';
+        input.onchange = () => { budgets[cat] = input.value ? parseFloat(input.value) : undefined; saveCategoriesAndBudgets(); };
+        budgetWrap.appendChild(input);
+
+        const actions = document.createElement('div');
+        actions.className = 'flex gap-2 items-center';
+
+        const renameBtn = document.createElement('button');
+        renameBtn.innerHTML = '<i class="fas fa-edit text-gray-500 hover:text-gray-700"></i>';
+        renameBtn.className = 'text-sm p-1';
+        renameBtn.onclick = () => { showRenameModal(cat, 'expense'); };
+
+        const delBtn = document.createElement('button');
+        delBtn.innerHTML = '<i class="fas fa-trash text-red-500 hover:text-red-700"></i>';
+        delBtn.className = 'text-sm p-1';
+        delBtn.onclick = () => { expenseCategories = expenseCategories.filter(c => c !== cat); delete budgets[cat]; saveCategoriesAndBudgets(); };
+
+        actions.appendChild(renameBtn);
+        actions.appendChild(delBtn);
+
+        li.appendChild(nameSpan);
+        li.appendChild(budgetWrap);
+        li.appendChild(actions);
+        expenseCategoryList.appendChild(li);
+      });
+
+      // Income list with delete + rename
+      incomeCategoryList.innerHTML = '';
+      incomeCategories.forEach(cat => {
+        const li = document.createElement('li');
+        li.className = 'flex items-center justify-between bg-gray-100 p-2 rounded-md';
+        const nameSpan = document.createElement('span');
+        nameSpan.textContent = cat;
+        nameSpan.className = 'font-medium text-gray-800';
+
+        const actions = document.createElement('div');
+        actions.className = 'flex gap-2 items-center';
+
+        const renameBtn = document.createElement('button');
+        renameBtn.innerHTML = '<i class="fas fa-edit text-gray-500 hover:text-gray-700"></i>';
+        renameBtn.className = 'text-sm p-1';
+        renameBtn.onclick = () => { showRenameModal(cat, 'income'); };
+
+        const delBtn = document.createElement('button');
+        delBtn.innerHTML = '<i class="fas fa-trash text-red-500 hover:text-red-700"></i>';
+        delBtn.className = 'text-sm p-1';
+        delBtn.onclick = () => { incomeCategories = incomeCategories.filter(c => c !== cat); saveCategoriesAndBudgets(); };
+
+        actions.appendChild(renameBtn);
+        actions.appendChild(delBtn);
+
+        li.appendChild(nameSpan);
+        li.appendChild(actions);
+        incomeCategoryList.appendChild(li);
+      });
+    }
+
+    function populateCategoryDropdown(selectElement, categories) {
+      selectElement.innerHTML = '';
+      categories.forEach(cat => {
+        const option = document.createElement('option');
+        option.value = cat;
+        option.textContent = cat;
+        selectElement.appendChild(option);
+      });
+    }
+
+    function showRenameModal(originalName, type) {
+      renameOriginalNameInput.value = originalName;
+      renameTypeInput.value = type;
+      renameNewNameInput.value = originalName;
+      renameModal.classList.remove('hidden');
+    }
+
+    // --- RENDER TRANSACTIONS / BALANCES / REPORTS ---
+    function renderTransactions() {
+      const yyyyMm = monthKeyFromInput(monthPicker.value);
+      const filtered = transactions.filter(t => isInMonth(t.date, yyyyMm));
+      transactionListEl.innerHTML = '';
+
+      if (filtered.length === 0) {
+        transactionListEl.innerHTML = '<tr class="bg-white border-b"><td colspan="7" class="px-6 py-12 text-center text-gray-400">Aucune transaction ce mois-ci.</td></tr>';
+        return;
+      }
+
+      const sorted = [...filtered].sort((a,b) => new Date(b.date) - new Date(a.date));
+      sorted.forEach(t => {
+        const tr = document.createElement('tr');
+        tr.className = 'bg-white border-b hover:bg-gray-50';
+
+        const method = t.type === 'transfer' ? `${t.from}→${t.to}` : (t.method || '-');
+        let amountCell = '';
+        if (t.type === 'income') amountCell = `<td class="px-6 py-4 font-semibold text-green-600 text-right">+${fmtMAD(t.amount)}</td>`;
+        else if (t.type === 'expense') amountCell = `<td class="px-6 py-4 font-semibold text-red-600 text-right">-${fmtMAD(t.amount)}</td>`;
+        else amountCell = `<td class="px-6 py-4 font-semibold text-indigo-600 text-right">${fmtMAD(t.amount)}</td>`;
+
+        const actionsHtml = `
+          <td class="px-6 py-4 text-right whitespace-nowrap">
+            <button class="text-blue-500 hover:text-blue-700 mr-3 edit-btn" data-id="${t.id}">
+              <i class="fas fa-edit"></i>
+            </button>
+            <button class="text-red-500 hover:text-red-700 delete-btn" data-id="${t.id}">
+              <i class="fas fa-trash"></i>
+            </button>
+          </td>
+        `;
+
+        tr.innerHTML = `
+          <td class="px-6 py-4 text-gray-500">${new Date(t.date).toLocaleDateString()}</td>
+          <td class="px-6 py-4 font-medium text-gray-900">${t.description}</td>
+          <td class="px-6 py-4">${t.category || '-'}</td>
+          <td class="px-6 py-4 capitalize">${t.type}</td>
+          <td class="px-6 py-4">${method}</td>
+          ${amountCell}
+          ${actionsHtml}
+        `;
+        transactionListEl.appendChild(tr);
+      });
+    }
+
+    // Attach listeners after rendering transactions
+    function attachTransactionListeners() {
+      document.querySelectorAll('.edit-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const id = e.currentTarget.dataset.id;
+          const transaction = transactions.find(t => t.id === id);
+          if (transaction) {
+            showEditModal(transaction);
+          }
+        });
+      });
+      document.querySelectorAll('.delete-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const id = e.currentTarget.dataset.id;
+          showConfirmModal(
+            'Supprimer la transaction',
+            'Êtes-vous sûr de vouloir supprimer cette transaction ?',
+            () => deleteTransaction(id)
+          );
+        });
+      });
+    }
+
+    function updateBalances() {
+      let bank = 0, cash = 0;
+      transactions.forEach(t => {
+        switch (t.type) {
+          case 'income':
+            if (t.method === 'Bank') bank += t.amount;
+            if (t.method === 'Cash') cash += t.amount;
+            break;
+          case 'expense':
+            if (t.method === 'Bank') bank -= t.amount;
+            if (t.method === 'Cash') cash -= t.amount;
+            break;
+          case 'transfer':
+            if (t.from === 'Bank') bank -= t.amount;
+            if (t.from === 'Cash') cash -= t.amount;
+            if (t.to === 'Bank') bank += t.amount;
+            if (t.to === 'Cash') cash += t.amount;
+            break;
+        }
+      });
+      bankBalanceEl.textContent = fmtMAD(bank);
+      cashBalanceEl.textContent = fmtMAD(cash);
+    }
+    
+    function updateMonthlySummary() {
+      const yyyyMm = monthKeyFromInput(monthPicker.value);
+      let totalIncome = 0;
+      let totalExpense = 0;
+
+      transactions.forEach(t => {
+        if (isInMonth(t.date, yyyyMm)) {
+          if (t.type === 'income') {
+            totalIncome += t.amount;
+          } else if (t.type === 'expense') {
+            totalExpense += t.amount;
+          }
+        }
+      });
+      const monthlyBalance = totalIncome - totalExpense;
+
+      totalIncomeEl.textContent = fmtMAD(totalIncome);
+      totalExpenseEl.textContent = fmtMAD(totalExpense);
+      monthlyBalanceEl.textContent = fmtMAD(monthlyBalance);
+    }
+
+    function renderReport() {
+      const yyyyMm = monthKeyFromInput(monthPicker.value);
+      const sums = {};
+      transactions.forEach(t => {
+        if (t.type === 'expense' && isInMonth(t.date, yyyyMm)) {
+          sums[t.category] = (sums[t.category] || 0) + t.amount;
+        }
+      });
+      const cats = Object.keys({ ...sums, ...budgets }).sort();
+
+      // Update table
+      reportBodyEl.innerHTML = '';
+      if (cats.length === 0) {
+        reportBodyEl.innerHTML = '<tr class="bg-white border-b"><td colspan="4" class="px-6 py-12 text-center text-gray-400">Aucune dépense ce mois-ci.</td></tr>';
+      } else {
+        cats.forEach(cat => {
           const spent = sums[cat] || 0;
           const budget = budgets[cat] ?? 0;
           const remaining = (budget || 0) - spent;
@@ -537,192 +1044,315 @@
         });
       }
 
-      function render() {
-        // dropdowns
-        populateCategoryDropdown(expenseCategorySelect, expenseCategories);
-        populateCategoryDropdown(incomeCategorySelect, incomeCategories);
-        // modal lists
-        renderCategoryLists();
-        // tables
-        renderTransactions();
-        updateBalances();
-        renderReport();
-        // budget warnings (expense form only)
-        updateExpenseAlertPreview();
+      // Update chart
+      if (chartInstance) {
+        chartInstance.destroy();
       }
 
-      // --- ADD TRANSACTION ---
-      function addTransaction(data) {
-        const tx = {
-          ...data,
-          id: Date.now(),
-          date: data.date || todayISO()
-        };
-        transactions.push(tx);
-        saveAll();
-        render();
-      }
+      const ctx = document.getElementById('budgetChart').getContext('2d');
+      const labels = cats;
+      const budgetData = labels.map(label => budgets[label] ?? 0);
+      const spentData = labels.map(label => sums[label] ?? 0);
 
-      // --- EVENTS ---
-      // Tabs
-      tabs.forEach(tab => {
-        tab.btn.addEventListener('click', () => {
-          tabs.forEach(t => { t.form.classList.add('hidden'); t.btn.classList.remove('active'); });
-          tab.form.classList.remove('hidden'); tab.btn.classList.add('active');
-        });
+      chartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              label: 'Budget',
+              data: budgetData,
+              backgroundColor: 'rgba(79, 70, 229, 0.6)',
+              borderColor: 'rgba(79, 70, 229, 1)',
+              borderWidth: 1
+            },
+            {
+              label: 'Dépensé',
+              data: spentData,
+              backgroundColor: 'rgba(239, 68, 68, 0.6)',
+              borderColor: 'rgba(239, 68, 68, 1)',
+              borderWidth: 1
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            y: {
+              beginAtZero: true
+            }
+          },
+          plugins: {
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  let label = context.dataset.label || '';
+                  if (label) {
+                    label += ': ';
+                  }
+                  if (context.parsed.y !== null) {
+                    label += fmtMAD(context.parsed.y);
+                  }
+                  return label;
+                }
+              }
+            }
+          }
+        }
       });
+    }
 
-      // Month picker default to requested start (Sept 2025) or today if already data elsewhere
-      // If no value yet, set to 2025-09 per user's spec; you can change anytime.
-      const defaultMonth = '2025-09';
-      monthPicker.value = monthPicker.value || defaultMonth;
+    function render() {
+      populateCategoryDropdown(expenseCategorySelect, expenseCategories);
+      populateCategoryDropdown(incomeCategorySelect, incomeCategories);
+      renderCategoryLists();
+      renderTransactions();
+      updateBalances();
+      updateMonthlySummary();
+      renderReport();
+      updateExpenseAlertPreview();
+      attachTransactionListeners();
+    }
+    
+    // --- EXCEL EXPORT ---
+    function exportToExcel() {
+      const yyyyMm = monthKeyFromInput(monthPicker.value);
+      const filteredTransactions = transactions.filter(t => isInMonth(t.date, yyyyMm));
 
-      // Default dates to today for convenience
-      document.getElementById('expense-date').value  = todayISO();
-      document.getElementById('income-date').value   = todayISO();
+      // Sheet 1: Transactions
+      const transactionsData = filteredTransactions.map(t => ({
+        Date: t.date,
+        Description: t.description,
+        Catégorie: t.category,
+        Type: t.type,
+        Méthode: t.type === 'transfer' ? `${t.from} -> ${t.to}` : t.method,
+        Montant: t.amount,
+      }));
+      const ws1 = XLSX.utils.json_to_sheet(transactionsData);
+      
+      // Sheet 2: Monthly Report
+      const sums = {};
+      filteredTransactions.forEach(t => {
+        if (t.type === 'expense' && isInMonth(t.date, yyyyMm)) {
+          sums[t.category] = (sums[t.category] || 0) + t.amount;
+        }
+      });
+      const reportData = Object.keys(sums).map(cat => ({
+        'Catégorie': cat,
+        'Budget': budgets[cat] ?? 'N/A',
+        'Dépensé': sums[cat],
+        'Restant': (budgets[cat] ?? 0) - sums[cat]
+      }));
+      const ws2 = XLSX.utils.json_to_sheet(reportData);
+
+      // Create workbook
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws1, "Transactions");
+      XLSX.utils.book_append_sheet(wb, ws2, "Rapport Mensuel");
+
+      // Export
+      XLSX.writeFile(wb, `rapport_financier_${yyyyMm}.xlsx`);
+    }
+
+    // --- EVENTS ---
+    // Tabs
+    tabs.forEach(tab => {
+      tab.btn.addEventListener('click', () => {
+        tabs.forEach(t => { t.form.classList.add('hidden'); t.btn.classList.remove('active'); });
+        tab.form.classList.remove('hidden'); tab.btn.classList.add('active');
+      });
+    });
+
+    // Month picker default to current month
+    const defaultMonth = new Date().toISOString().slice(0, 7);
+    monthPicker.value = defaultMonth;
+
+    // Default dates to today for convenience
+    document.getElementById('expense-date').value = todayISO();
+    document.getElementById('income-date').value = todayISO();
+    document.getElementById('transfer-date').value = todayISO();
+
+    // Transfer From/To linkage
+    function syncTransferTo() {
+      transferToEl.value = transferFromEl.value === 'Bank' ? 'Cash' : 'Bank';
+    }
+    transferFromEl.addEventListener('change', syncTransferTo);
+    syncTransferTo();
+
+    // Add Expense
+    expenseForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      addTransaction({
+        type: 'expense',
+        date: document.getElementById('expense-date').value,
+        description: document.getElementById('expense-description').value,
+        amount: parseFloat(document.getElementById('expense-amount').value),
+        category: expenseCategorySelect.value,
+        method: document.querySelector('input[name="expense-method"]:checked').value,
+      });
+      expenseForm.reset();
+      document.getElementById('expense-date').value = todayISO();
+      updateExpenseAlertPreview();
+    });
+
+    // Add Income
+    incomeForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      addTransaction({
+        type: 'income',
+        date: document.getElementById('income-date').value,
+        description: document.getElementById('income-description').value,
+        amount: parseFloat(document.getElementById('income-amount').value),
+        category: incomeCategorySelect.value,
+        method: document.querySelector('input[name="income-method"]:checked').value,
+      });
+      incomeForm.reset();
+      document.getElementById('income-date').value = todayISO();
+    });
+
+    // Add Transfer
+    transferForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const from = transferFromEl.value;
+      addTransaction({
+        type: 'transfer',
+        date: document.getElementById('transfer-date').value,
+        description: `Transfert ${from} → ${from === 'Bank' ? 'Cash' : 'Bank'}`,
+        amount: parseFloat(document.getElementById('transfer-amount').value),
+        category: 'Transfer',
+        from: from,
+        to: from === 'Bank' ? 'Cash' : 'Bank',
+      });
+      transferForm.reset();
       document.getElementById('transfer-date').value = todayISO();
-
-      // Transfer From/To linkage
-      function syncTransferTo() {
-        transferToEl.value = transferFromEl.value === 'Bank' ? 'Cash' : 'Bank';
-      }
-      transferFromEl.addEventListener('change', syncTransferTo);
       syncTransferTo();
+    });
 
-      // Add Expense
-      expenseForm.addEventListener('submit', (e) => {
-        e.preventDefault();
-        const amount = parseFloat(document.getElementById('expense-amount').value);
-        addTransaction({
-          type: 'expense',
-          date: document.getElementById('expense-date').value,
-          description: document.getElementById('expense-description').value,
-          amount: amount,
-          category: expenseCategorySelect.value,
-          method: document.querySelector('input[name="expense-method"]:checked').value,
-          note: document.getElementById('expense-note').value || '',
-          recurring: !!document.getElementById('expense-recurring').checked
-        });
-        expenseForm.reset();
-        document.getElementById('expense-date').value = todayISO();
-        updateExpenseAlertPreview();
-      });
+    // Edit Form submission
+    editForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const transactionId = editIdInput.value;
+      const updatedData = {
+        date: editDateInput.value,
+        description: editDescriptionInput.value,
+        amount: parseFloat(editAmountInput.value),
+        category: editCategorySelect.value,
+        method: editMethodSelect.value,
+      };
+      editTransaction(transactionId, updatedData);
+      editModal.classList.add('hidden');
+    });
 
-      // Add Income
-      incomeForm.addEventListener('submit', (e) => {
-        e.preventDefault();
-        addTransaction({
-          type: 'income',
-          date: document.getElementById('income-date').value,
-          description: document.getElementById('income-description').value,
-          amount: parseFloat(document.getElementById('income-amount').value),
-          category: incomeCategorySelect.value,
-          method: document.querySelector('input[name="income-method"]:checked').value,
-          note: document.getElementById('income-note').value || '',
-          recurring: !!document.getElementById('income-recurring').checked
-        });
-        incomeForm.reset();
-        document.getElementById('income-date').value = todayISO();
-      });
-
-      // Add Transfer
-      transferForm.addEventListener('submit', (e) => {
-        e.preventDefault();
-        const from = transferFromEl.value;
-        addTransaction({
-          type: 'transfer',
-          date: document.getElementById('transfer-date').value,
-          description: `Transfer ${from} → ${from === 'Bank' ? 'Cash' : 'Bank'}`,
-          amount: parseFloat(document.getElementById('transfer-amount').value),
-          category: 'Transfer',
-          from: from,
-          to: from === 'Bank' ? 'Cash' : 'Bank',
-          note: document.getElementById('transfer-note').value || ''
-        });
-        transferForm.reset();
-        document.getElementById('transfer-date').value = todayISO();
-        syncTransferTo();
-      });
-
-      // Quick Withdraw = transfer Bank -> Cash
-      quickWithdrawBtn.addEventListener('click', () => {
-        tabs[2].btn.click(); // go to Transfer tab
-        transferFromEl.value = 'Bank';
-        syncTransferTo();
-        document.getElementById('transfer-amount').focus();
-      });
-
-      // Modal open/close
-      manageCategoriesBtn.addEventListener('click', () => categoryModal.classList.remove('hidden'));
-      closeModalBtn.addEventListener('click', () => categoryModal.classList.add('hidden'));
-      modalBackdrop.addEventListener('click', () => categoryModal.classList.add('hidden'));
-
-      // Add/Delete categories
-      addExpenseCategoryForm.addEventListener('submit', (e) => {
-        e.preventDefault();
-        const newCat = newExpenseCategoryInput.value.trim();
-        if (newCat && !expenseCategories.includes(newCat)) {
-          expenseCategories.push(newCat);
-          saveAll(); render();
-        }
-        newExpenseCategoryInput.value = '';
-      });
-      addIncomeCategoryForm.addEventListener('submit', (e) => {
-        e.preventDefault();
-        const newCat = newIncomeCategoryInput.value.trim();
-        if (newCat && !incomeCategories.includes(newCat)) {
-          incomeCategories.push(newCat);
-          saveAll(); render();
-        }
-        newIncomeCategoryInput.value = '';
-      });
-
-      // Month picker re-render
-      monthPicker.addEventListener('change', render);
-
-      // Export / Reset
-      exportBtn.addEventListener('click', () => {
-        const blob = new Blob([JSON.stringify({ transactions, expenseCategories, incomeCategories, budgets }, null, 2)], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url; a.download = 'financial_workbook_data.json'; a.click();
-        URL.revokeObjectURL(url);
-      });
-      resetBtn.addEventListener('click', () => {
-        if (confirm('This will clear all transactions, categories and budgets from this browser. Continue?')) {
-          transactions = []; expenseCategories = ['Food','Transport','Housing','Utilities','Entertainment','Other'];
-          incomeCategories = ['Salary','Freelance','Investment','Gift','Other']; budgets = {};
-          saveAll(); render();
-        }
-      });
-
-      // Budget warning preview on Expense form
-      function updateExpenseAlertPreview() {
-        const yyyyMm = monthKeyFromInput(monthPicker.value);
-        const cat = expenseCategorySelect.value;
-        const budget = budgets[cat] ?? undefined;
-        const entered = parseFloat(expenseAmountEl.value || '0');
-        let already = 0;
-        transactions.forEach(t => {
-          if (t.type === 'expense' && t.category === cat && isInMonth(t.date, yyyyMm)) already += t.amount;
-        });
-        const willBe = already + (entered || 0);
-        const over = budget && willBe > budget;
-        if (over) {
-          expenseAmountEl.classList.add('input-alert');
-          expenseAlertEl.classList.remove('hidden');
-        } else {
-          expenseAmountEl.classList.remove('input-alert');
-          expenseAlertEl.classList.add('hidden');
-        }
+    // Rename Form submission
+    renameForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const originalName = renameOriginalNameInput.value;
+      const newName = renameNewNameInput.value.trim();
+      const type = renameTypeInput.value;
+      if (newName) {
+        await renameCategory(originalName, newName, type);
+        renameModal.classList.add('hidden');
       }
-      expenseAmountEl.addEventListener('input', updateExpenseAlertPreview);
-      expenseCategorySelect.addEventListener('change', updateExpenseAlertPreview);
-      monthPicker.addEventListener('change', updateExpenseAlertPreview);
+    });
 
-      // Initialize
+    // Quick Withdraw = transfer Bank -> Cash
+    quickWithdrawBtn.addEventListener('click', () => {
+      transferFromEl.value = 'Bank';
+      transferToEl.value = 'Cash';
+      document.getElementById('transfer-amount').focus();
+      tabs[2].btn.click();
+    });
+
+    // Modal open/close
+    manageCategoriesBtn.addEventListener('click', () => categoryModal.classList.remove('hidden'));
+    closeModalBtn.addEventListener('click', () => categoryModal.classList.add('hidden'));
+    modalBackdrop.addEventListener('click', () => categoryModal.classList.add('hidden'));
+    closeEditModalBtn.addEventListener('click', () => editModal.classList.add('hidden'));
+    closeRenameModalBtn.addEventListener('click', () => renameModal.classList.add('hidden'));
+    
+    // Add/Delete categories
+    addExpenseCategoryForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const newCat = newExpenseCategoryInput.value.trim();
+      if (newCat && !expenseCategories.includes(newCat)) {
+        expenseCategories.push(newCat);
+        saveCategoriesAndBudgets();
+      }
+      newExpenseCategoryInput.value = '';
+    });
+    addIncomeCategoryForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const newCat = newIncomeCategoryInput.value.trim();
+      if (newCat && !incomeCategories.includes(newCat)) {
+        incomeCategories.push(newCat);
+        saveCategoriesAndBudgets();
+      }
+      newIncomeCategoryInput.value = '';
+    });
+
+    // Month picker re-render
+    monthPicker.addEventListener('change', render);
+
+    // Export dropdown
+    exportBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      exportDropdown.classList.toggle('hidden');
+    });
+    document.addEventListener('click', (e) => {
+      if (!exportBtn.contains(e.target)) {
+        exportDropdown.classList.add('hidden');
+      }
+    });
+    document.querySelectorAll('#exportDropdown a').forEach(link => {
+      link.addEventListener('click', (e) => {
+        e.preventDefault();
+        const format = e.target.dataset.format;
+        if (format === 'json') {
+          const data = { transactions, expenseCategories, incomeCategories, budgets };
+          const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = 'financial_workbook_data.json';
+          a.click();
+          URL.revokeObjectURL(url);
+        } else if (format === 'xlsx') {
+          exportToExcel();
+        }
+        exportDropdown.classList.add('hidden');
+      });
+    });
+
+    resetBtn.addEventListener('click', resetData);
+
+    // Budget warning preview on Expense form
+    function updateExpenseAlertPreview() {
+      const yyyyMm = monthKeyFromInput(monthPicker.value);
+      const cat = expenseCategorySelect.value;
+      const budget = budgets[cat] ?? undefined;
+      const entered = parseFloat(expenseAmountEl.value || '0');
+      let already = 0;
+      transactions.forEach(t => {
+        if (t.type === 'expense' && t.category === cat && isInMonth(t.date, yyyyMm)) already += t.amount;
+      });
+      const willBe = already + (entered || 0);
+      const over = budget && willBe > budget;
+      if (over) {
+        expenseAmountEl.classList.add('input-alert');
+        expenseAlertEl.classList.remove('hidden');
+      } else {
+        expenseAmountEl.classList.remove('input-alert');
+        expenseAlertEl.classList.add('hidden');
+      }
+    }
+    expenseAmountEl.addEventListener('input', updateExpenseAlertPreview);
+    expenseCategorySelect.addEventListener('change', updateExpenseAlertPreview);
+    monthPicker.addEventListener('change', updateExpenseAlertPreview);
+
+    // Initial setup
+    document.addEventListener('DOMContentLoaded', () => {
       tabs[0].btn.click();
-      render();
     });
   </script>
 </body>
