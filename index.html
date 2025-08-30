@@ -1,0 +1,729 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Financial Workbook — MAD</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    .tab-content { transition: opacity 0.2s ease-in-out; }
+    .tab-button.active { border-color:#4f46e5; color:#4f46e5; background:#eef2ff; }
+    .modal-backdrop { transition: opacity 0.2s ease; }
+    .modal-panel { transition: all 0.2s ease; }
+    .input-alert { box-shadow: 0 0 0 2px rgba(220,38,38,.4); border-color: rgb(220,38,38); }
+  </style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+  <div class="container mx-auto p-4 md:p-8 max-w-7xl">
+    <!-- Header -->
+    <header class="mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <div>
+        <h1 class="text-3xl md:text-4xl font-bold text-gray-900">Financial Workbook</h1>
+        <p class="text-gray-500 mt-1">Track income, expenses, and transfers. Currency: MAD.</p>
+      </div>
+      <div class="flex items-center gap-3">
+        <label class="text-sm text-gray-600">Month:</label>
+        <input id="monthPicker" type="month" class="px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+        <button id="manageCategoriesBtn" class="bg-white text-gray-700 font-semibold py-2 px-4 border border-gray-300 rounded-lg shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition">
+          Categories & Budgets
+        </button>
+      </div>
+    </header>
+
+    <main class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <!-- Left Column -->
+      <div class="lg:col-span-1 space-y-6">
+        <!-- Balances -->
+        <section class="bg-white p-6 rounded-2xl shadow-md">
+          <h2 class="text-xl font-bold mb-4">Account Balances</h2>
+          <div class="space-y-4">
+            <div class="flex justify-between items-center p-4 bg-blue-50 rounded-lg">
+              <span class="font-semibold text-blue-800">Bank Balance</span>
+              <span id="bankBalance" class="font-bold text-lg text-blue-900">0,00 MAD</span>
+            </div>
+            <div class="flex justify-between items-center p-4 bg-green-50 rounded-lg">
+              <span class="font-semibold text-green-800">Cash on Hand</span>
+              <span id="cashBalance" class="font-bold text-lg text-green-900">0,00 MAD</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- Forms -->
+        <section class="bg-white p-6 rounded-2xl shadow-md">
+          <h2 class="text-xl font-bold mb-4">Add New Transaction</h2>
+          <!-- Tabs -->
+          <div class="grid grid-cols-3 gap-2 mb-6 border-b border-gray-200">
+            <button id="tabBtnExpense"  class="tab-button text-sm font-semibold py-3 border-b-2 border-transparent">Expense</button>
+            <button id="tabBtnIncome"   class="tab-button text-sm font-semibold py-3 border-b-2 border-transparent">Income</button>
+            <button id="tabBtnTransfer" class="tab-button text-sm font-semibold py-3 border-b-2 border-transparent">Transfer</button>
+          </div>
+
+          <!-- Expense Form -->
+          <div id="formExpense" class="tab-content">
+            <form id="expense-form" class="space-y-4">
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label for="expense-date" class="block text-sm font-medium text-gray-700">Date</label>
+                  <input type="date" id="expense-date" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" required>
+                </div>
+                <div>
+                  <label for="expense-amount" class="block text-sm font-medium text-gray-700">Amount</label>
+                  <input type="number" id="expense-amount" placeholder="0.00" min="0.01" step="0.01" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" required>
+                </div>
+              </div>
+              <div>
+                <label for="expense-description" class="block text-sm font-medium text-gray-700">Description</label>
+                <input type="text" id="expense-description" placeholder="e.g., Groceries" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" required>
+              </div>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label for="expense-category" class="block text-sm font-medium text-gray-700">Category</label>
+                  <select id="expense-category" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"></select>
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700">Paid By</label>
+                  <div class="mt-2 flex gap-4">
+                    <label class="flex items-center">
+                      <input type="radio" name="expense-method" value="Bank" class="h-4 w-4 text-indigo-600 border-gray-300 focus:ring-indigo-500" checked>
+                      <span class="ml-2 text-sm">Bank</span>
+                    </label>
+                    <label class="flex items-center">
+                      <input type="radio" name="expense-method" value="Cash" class="h-4 w-4 text-indigo-600 border-gray-300 focus:ring-indigo-500">
+                      <span class="ml-2 text-sm">Cash</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label for="expense-note" class="block text-sm font-medium text-gray-700">Note (optional)</label>
+                  <input type="text" id="expense-note" placeholder="Add a note…" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                </div>
+                <div class="flex items-center mt-6">
+                  <input id="expense-recurring" type="checkbox" class="h-4 w-4 text-indigo-600 border-gray-300 focus:ring-indigo-500">
+                  <label for="expense-recurring" class="ml-2 text-sm text-gray-700">Recurring</label>
+                </div>
+              </div>
+              <p id="expense-alert" class="hidden text-sm text-red-600">Warning: this will exceed the monthly budget for this category.</p>
+              <div class="flex gap-3">
+                <button type="submit" class="flex-1 bg-red-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition">Add Expense</button>
+                <button id="quickWithdraw" type="button" class="px-4 py-2 bg-indigo-50 text-indigo-700 rounded-lg border border-indigo-200 hover:bg-indigo-100">Withdraw Cash</button>
+              </div>
+            </form>
+          </div>
+
+          <!-- Income Form -->
+          <div id="formIncome" class="tab-content hidden">
+            <form id="income-form" class="space-y-4">
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label for="income-date" class="block text-sm font-medium text-gray-700">Date</label>
+                  <input type="date" id="income-date" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" required>
+                </div>
+                <div>
+                  <label for="income-amount" class="block text-sm font-medium text-gray-700">Amount</label>
+                  <input type="number" id="income-amount" placeholder="0.00" min="0.01" step="0.01" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" required>
+                </div>
+              </div>
+              <div>
+                <label for="income-description" class="block text-sm font-medium text-gray-700">Description</label>
+                <input type="text" id="income-description" placeholder="e.g., Salary" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" required>
+              </div>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label for="income-category" class="block text-sm font-medium text-gray-700">Category</label>
+                  <select id="income-category" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"></select>
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700">Received In</label>
+                  <div class="mt-2 flex gap-4">
+                    <label class="flex items-center">
+                      <input type="radio" name="income-method" value="Bank" class="h-4 w-4 text-indigo-600 border-gray-300 focus:ring-indigo-500" checked>
+                      <span class="ml-2 text-sm">Bank</span>
+                    </label>
+                    <label class="flex items-center">
+                      <input type="radio" name="income-method" value="Cash" class="h-4 w-4 text-indigo-600 border-gray-300 focus:ring-indigo-500">
+                      <span class="ml-2 text-sm">Cash</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label for="income-note" class="block text-sm font-medium text-gray-700">Note (optional)</label>
+                  <input type="text" id="income-note" placeholder="Add a note…" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                </div>
+                <div class="flex items-center mt-6">
+                  <input id="income-recurring" type="checkbox" class="h-4 w-4 text-indigo-600 border-gray-300 focus:ring-indigo-500">
+                  <label for="income-recurring" class="ml-2 text-sm text-gray-700">Recurring</label>
+                </div>
+              </div>
+              <button type="submit" class="w-full bg-green-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition">Add Income</button>
+            </form>
+          </div>
+
+          <!-- Transfer Form -->
+          <div id="formTransfer" class="tab-content hidden">
+            <form id="transfer-form" class="space-y-4">
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label for="transfer-date" class="block text-sm font-medium text-gray-700">Date</label>
+                  <input type="date" id="transfer-date" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" required>
+                </div>
+                <div>
+                  <label for="transfer-amount" class="block text-sm font-medium text-gray-700">Amount</label>
+                  <input type="number" id="transfer-amount" placeholder="0.00" min="0.01" step="0.01" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" required>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                  <div>
+                    <label for="transfer-from" class="block text-sm font-medium text-gray-700">From</label>
+                    <select id="transfer-from" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                      <option value="Bank">Bank</option>
+                      <option value="Cash">Cash</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label for="transfer-to" class="block text-sm font-medium text-gray-700">To</label>
+                    <select id="transfer-to" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" disabled>
+                      <option value="Cash">Cash</option>
+                      <option value="Bank">Bank</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <label for="transfer-note" class="block text-sm font-medium text-gray-700">Note (optional)</label>
+                <input type="text" id="transfer-note" placeholder="Add a note…" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+              </div>
+              <button type="submit" class="w-full bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition">Add Transfer</button>
+            </form>
+          </div>
+        </section>
+      </div>
+
+      <!-- Right Column: History & Reports -->
+      <div class="lg:col-span-2 space-y-6">
+        <section class="bg-white p-6 rounded-2xl shadow-md">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-xl font-bold">Transaction History</h2>
+            <div class="flex items-center gap-3">
+              <button id="exportBtn" class="px-3 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50">Export JSON</button>
+              <button id="resetBtn" class="px-3 py-2 border border-red-300 text-red-700 rounded-lg text-sm hover:bg-red-50">Reset Data</button>
+            </div>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm text-left text-gray-500">
+              <thead class="text-xs text-gray-700 uppercase bg-gray-50">
+                <tr>
+                  <th class="px-6 py-3">Date</th>
+                  <th class="px-6 py-3">Description</th>
+                  <th class="px-6 py-3">Category</th>
+                  <th class="px-6 py-3">Type</th>
+                  <th class="px-6 py-3">Method</th>
+                  <th class="px-6 py-3">Note</th>
+                  <th class="px-6 py-3 text-right">Amount</th>
+                </tr>
+              </thead>
+              <tbody id="transaction-list">
+                <tr class="bg-white border-b">
+                  <td colspan="7" class="px-6 py-12 text-center text-gray-400">No transactions yet.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- Reports -->
+        <section class="bg-white p-6 rounded-2xl shadow-md">
+          <h2 class="text-xl font-bold mb-4">Monthly Category Report</h2>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm text-left text-gray-500">
+              <thead class="text-xs text-gray-700 uppercase bg-gray-50">
+                <tr>
+                  <th class="px-6 py-3">Category</th>
+                  <th class="px-6 py-3 text-right">Budget</th>
+                  <th class="px-6 py-3 text-right">Spent</th>
+                  <th class="px-6 py-3 text-right">Remaining</th>
+                </tr>
+              </thead>
+              <tbody id="report-body">
+                <tr class="bg-white border-b">
+                  <td colspan="4" class="px-6 py-12 text-center text-gray-400">No expenses this month.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <!-- Category/Budget Modal -->
+  <div id="categoryModal" class="fixed inset-0 z-10 overflow-y-auto hidden" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+    <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+      <div id="modalBackdrop" class="fixed inset-0 bg-gray-500 bg-opacity-75 modal-backdrop" aria-hidden="true"></div>
+      <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+      <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform sm:my-8 sm:align-middle sm:max-w-2xl sm:w-full modal-panel">
+        <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+          <div class="sm:flex sm:items-start">
+            <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
+              <h3 class="text-lg leading-6 font-medium text-gray-900" id="modal-title">Categories & Monthly Budgets</h3>
+              <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Expense Categories -->
+                <div>
+                  <h4 class="font-semibold mb-2">Expense Categories</h4>
+                  <form id="add-expense-category-form" class="flex gap-2 mb-3">
+                    <input type="text" id="new-expense-category" placeholder="New category" class="block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" required>
+                    <button type="submit" class="bg-red-600 text-white px-3 py-2 rounded-md hover:bg-red-700 text-sm font-semibold">+</button>
+                  </form>
+                  <ul id="expense-category-list" class="space-y-2 max-h-64 overflow-y-auto"></ul>
+                </div>
+                <!-- Income Categories -->
+                <div>
+                  <h4 class="font-semibold mb-2">Income Categories</h4>
+                  <form id="add-income-category-form" class="flex gap-2 mb-3">
+                    <input type="text" id="new-income-category" placeholder="New category" class="block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" required>
+                    <button type="submit" class="bg-green-600 text-white px-3 py-2 rounded-md hover:bg-green-700 text-sm font-semibold">+</button>
+                  </form>
+                  <ul id="income-category-list" class="space-y-2 max-h-64 overflow-y-auto"></ul>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+          <button type="button" id="closeModalBtn" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      // --- STATE ---
+      let transactions = JSON.parse(localStorage.getItem('transactions')) || [];
+      let expenseCategories = JSON.parse(localStorage.getItem('expenseCategories')) || ['Food','Transport','Housing','Utilities','Entertainment','Other'];
+      let incomeCategories  = JSON.parse(localStorage.getItem('incomeCategories'))  || ['Salary','Freelance','Investment','Gift','Other'];
+      let budgets = JSON.parse(localStorage.getItem('budgets')) || {}; // { category: monthlyBudgetMAD }
+
+      // --- ELEMENTS ---
+      const expenseForm = document.getElementById('expense-form');
+      const incomeForm  = document.getElementById('income-form');
+      const transferForm= document.getElementById('transfer-form');
+
+      const expenseCategorySelect = document.getElementById('expense-category');
+      const incomeCategorySelect  = document.getElementById('income-category');
+
+      const bankBalanceEl = document.getElementById('bankBalance');
+      const cashBalanceEl = document.getElementById('cashBalance');
+      const transactionListEl = document.getElementById('transaction-list');
+      const reportBodyEl = document.getElementById('report-body');
+
+      const tabs = [
+        { btn: document.getElementById('tabBtnExpense'), form: document.getElementById('formExpense') },
+        { btn: document.getElementById('tabBtnIncome'),  form: document.getElementById('formIncome') },
+        { btn: document.getElementById('tabBtnTransfer'),form: document.getElementById('formTransfer') }
+      ];
+
+      const transferFromEl = document.getElementById('transfer-from');
+      const transferToEl   = document.getElementById('transfer-to');
+
+      const categoryModal = document.getElementById('categoryModal');
+      const manageCategoriesBtn = document.getElementById('manageCategoriesBtn');
+      const closeModalBtn = document.getElementById('closeModalBtn');
+      const modalBackdrop = document.getElementById('modalBackdrop');
+      const addExpenseCategoryForm = document.getElementById('add-expense-category-form');
+      const addIncomeCategoryForm  = document.getElementById('add-income-category-form');
+      const newExpenseCategoryInput = document.getElementById('new-expense-category');
+      const newIncomeCategoryInput  = document.getElementById('new-income-category');
+      const expenseCategoryList = document.getElementById('expense-category-list');
+      const incomeCategoryList  = document.getElementById('income-category-list');
+
+      const expenseAmountEl = document.getElementById('expense-amount');
+      const expenseAlertEl  = document.getElementById('expense-alert');
+      const quickWithdrawBtn= document.getElementById('quickWithdraw');
+
+      const monthPicker = document.getElementById('monthPicker');
+      const exportBtn   = document.getElementById('exportBtn');
+      const resetBtn    = document.getElementById('resetBtn');
+
+      // --- HELPERS ---
+      const fmtMAD = (x) => new Intl.NumberFormat('fr-MA', { style:'currency', currency:'MAD' }).format(x || 0);
+
+      const todayISO = () => {
+        const d = new Date();
+        const tzOffset = d.getTimezoneOffset(); // keep local date
+        const local = new Date(d.getTime() - tzOffset * 60000);
+        return local.toISOString().slice(0,10);
+      };
+
+      const monthKeyFromInput = (yyyyMmStr) => {
+        // yyyy-mm -> "YYYY-MM"
+        return yyyyMmStr || new Date().toISOString().slice(0,7);
+      };
+
+      const monthRange = (yyyyMm) => {
+        const [y,m] = yyyyMm.split('-').map(Number);
+        const start = new Date(y, m-1, 1);
+        const end   = new Date(y, m, 1); // exclusive
+        return { start, end };
+      };
+
+      const isInMonth = (isoDate, yyyyMm) => {
+        const { start, end } = monthRange(yyyyMm);
+        const d = new Date(isoDate);
+        return d >= start && d < end;
+      };
+
+      function saveAll() {
+        localStorage.setItem('transactions', JSON.stringify(transactions));
+        localStorage.setItem('expenseCategories', JSON.stringify(expenseCategories));
+        localStorage.setItem('incomeCategories', JSON.stringify(incomeCategories));
+        localStorage.setItem('budgets', JSON.stringify(budgets));
+      }
+
+      // --- CATEGORY MODAL RENDER/EDIT ---
+      function renderCategoryLists() {
+        // Expense list with budget inputs + delete
+        expenseCategoryList.innerHTML = '';
+        expenseCategories.forEach(cat => {
+          const li = document.createElement('li');
+          li.className = 'flex items-center justify-between bg-gray-100 p-2 rounded-md gap-2';
+          const label = document.createElement('span');
+          label.textContent = cat;
+
+          const budgetWrap = document.createElement('div');
+          budgetWrap.className = 'flex items-center gap-2';
+          const input = document.createElement('input');
+          input.type = 'number';
+          input.step = '0.01';
+          input.min = '0';
+          input.placeholder = 'Budget MAD/mo';
+          input.value = budgets[cat] ?? '';
+          input.className = 'w-32 px-2 py-1 text-sm bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500';
+          input.onchange = () => { budgets[cat] = input.value ? parseFloat(input.value) : undefined; saveAll(); render(); };
+
+          const delBtn = document.createElement('button');
+          delBtn.className = 'text-red-500 hover:text-red-700 font-bold';
+          delBtn.innerHTML = '&times;';
+          delBtn.onclick = () => { expenseCategories = expenseCategories.filter(c => c !== cat); delete budgets[cat]; saveAll(); render(); };
+
+          budgetWrap.appendChild(input);
+          li.appendChild(label);
+          li.appendChild(budgetWrap);
+          li.appendChild(delBtn);
+          expenseCategoryList.appendChild(li);
+        });
+
+        // Income list with delete (no budgets for income)
+        incomeCategoryList.innerHTML = '';
+        incomeCategories.forEach(cat => {
+          const li = document.createElement('li');
+          li.className = 'flex items-center justify-between bg-gray-100 p-2 rounded-md';
+          const label = document.createElement('span');
+          label.textContent = cat;
+          const delBtn = document.createElement('button');
+          delBtn.className = 'text-red-500 hover:text-red-700 font-bold';
+          delBtn.innerHTML = '&times;';
+          delBtn.onclick = () => { incomeCategories = incomeCategories.filter(c => c !== cat); saveAll(); render(); };
+          li.appendChild(label);
+          li.appendChild(delBtn);
+          incomeCategoryList.appendChild(li);
+        });
+      }
+
+      function populateCategoryDropdown(selectElement, categories) {
+        selectElement.innerHTML = '';
+        categories.forEach(cat => {
+          const option = document.createElement('option');
+          option.value = cat;
+          option.textContent = cat;
+          selectElement.appendChild(option);
+        });
+      }
+
+      // --- RENDER TRANSACTIONS / BALANCES / REPORTS ---
+      function renderTransactions() {
+        const yyyyMm = monthKeyFromInput(monthPicker.value);
+        const filtered = transactions.filter(t => isInMonth(t.date, yyyyMm));
+        transactionListEl.innerHTML = '';
+
+        if (filtered.length === 0) {
+          transactionListEl.innerHTML = '<tr class="bg-white border-b"><td colspan="7" class="px-6 py-12 text-center text-gray-400">No transactions this month.</td></tr>';
+          return;
+        }
+
+        const sorted = [...filtered].sort((a,b) => new Date(b.date) - new Date(a.date));
+        sorted.forEach(t => {
+          const tr = document.createElement('tr');
+          tr.className = 'bg-white border-b hover:bg-gray-50';
+
+          const method = t.type === 'transfer' ? `${t.from}→${t.to}` : (t.method || '-');
+          let amountCell = '';
+          if (t.type === 'income')      amountCell = `<td class="px-6 py-4 font-semibold text-green-600 text-right">+${fmtMAD(t.amount)}</td>`;
+          else if (t.type === 'expense')amountCell = `<td class="px-6 py-4 font-semibold text-red-600 text-right">-${fmtMAD(t.amount)}</td>`;
+          else                          amountCell = `<td class="px-6 py-4 font-semibold text-indigo-600 text-right">${fmtMAD(t.amount)}</td>`;
+
+          tr.innerHTML = `
+            <td class="px-6 py-4 text-gray-500">${new Date(t.date).toLocaleDateString()}</td>
+            <td class="px-6 py-4 font-medium text-gray-900">${t.description}</td>
+            <td class="px-6 py-4">${t.category || '-'}</td>
+            <td class="px-6 py-4 capitalize">${t.type}</td>
+            <td class="px-6 py-4">${method}</td>
+            <td class="px-6 py-4 text-gray-500">${t.note || ''}${t.recurring ? ' • Recurring' : ''}</td>
+            ${amountCell}
+          `;
+          transactionListEl.appendChild(tr);
+        });
+      }
+
+      function updateBalances() {
+        let bank = 0, cash = 0;
+        transactions.forEach(t => {
+          switch (t.type) {
+            case 'income':
+              if (t.method === 'Bank') bank += t.amount;
+              if (t.method === 'Cash') cash += t.amount;
+              break;
+            case 'expense':
+              if (t.method === 'Bank') bank -= t.amount;
+              if (t.method === 'Cash') cash -= t.amount;
+              break;
+            case 'transfer':
+              if (t.from === 'Bank') bank -= t.amount;
+              if (t.from === 'Cash') cash -= t.amount;
+              if (t.to === 'Bank') bank += t.amount;
+              if (t.to === 'Cash') cash += t.amount;
+              break;
+          }
+        });
+        bankBalanceEl.textContent = fmtMAD(bank);
+        cashBalanceEl.textContent = fmtMAD(cash);
+      }
+
+      function renderReport() {
+        const yyyyMm = monthKeyFromInput(monthPicker.value);
+        // Sum expenses by category for the selected month
+        const sums = {};
+        transactions.forEach(t => {
+          if (t.type === 'expense' && isInMonth(t.date, yyyyMm)) {
+            sums[t.category] = (sums[t.category] || 0) + t.amount;
+          }
+        });
+        const cats = Object.keys({ ...sums, ...budgets });
+
+        reportBodyEl.innerHTML = '';
+        if (cats.length === 0) {
+          reportBodyEl.innerHTML = '<tr class="bg-white border-b"><td colspan="4" class="px-6 py-12 text-center text-gray-400">No expenses this month.</td></tr>';
+          return;
+        }
+
+        cats.sort().forEach(cat => {
+          const spent = sums[cat] || 0;
+          const budget = budgets[cat] ?? 0;
+          const remaining = (budget || 0) - spent;
+          const remClass = remaining < 0 ? 'text-red-600 font-semibold' : 'text-gray-900';
+          const row = document.createElement('tr');
+          row.className = 'bg-white border-b';
+          row.innerHTML = `
+            <td class="px-6 py-3 font-medium text-gray-900">${cat}</td>
+            <td class="px-6 py-3 text-right">${budget ? fmtMAD(budget) : '-'}</td>
+            <td class="px-6 py-3 text-right">${fmtMAD(spent)}</td>
+            <td class="px-6 py-3 text-right ${remClass}">${budget ? fmtMAD(remaining) : '-'}</td>
+          `;
+          reportBodyEl.appendChild(row);
+        });
+      }
+
+      function render() {
+        // dropdowns
+        populateCategoryDropdown(expenseCategorySelect, expenseCategories);
+        populateCategoryDropdown(incomeCategorySelect, incomeCategories);
+        // modal lists
+        renderCategoryLists();
+        // tables
+        renderTransactions();
+        updateBalances();
+        renderReport();
+        // budget warnings (expense form only)
+        updateExpenseAlertPreview();
+      }
+
+      // --- ADD TRANSACTION ---
+      function addTransaction(data) {
+        const tx = {
+          ...data,
+          id: Date.now(),
+          date: data.date || todayISO()
+        };
+        transactions.push(tx);
+        saveAll();
+        render();
+      }
+
+      // --- EVENTS ---
+      // Tabs
+      tabs.forEach(tab => {
+        tab.btn.addEventListener('click', () => {
+          tabs.forEach(t => { t.form.classList.add('hidden'); t.btn.classList.remove('active'); });
+          tab.form.classList.remove('hidden'); tab.btn.classList.add('active');
+        });
+      });
+
+      // Month picker default to requested start (Sept 2025) or today if already data elsewhere
+      // If no value yet, set to 2025-09 per user's spec; you can change anytime.
+      const defaultMonth = '2025-09';
+      monthPicker.value = monthPicker.value || defaultMonth;
+
+      // Default dates to today for convenience
+      document.getElementById('expense-date').value  = todayISO();
+      document.getElementById('income-date').value   = todayISO();
+      document.getElementById('transfer-date').value = todayISO();
+
+      // Transfer From/To linkage
+      function syncTransferTo() {
+        transferToEl.value = transferFromEl.value === 'Bank' ? 'Cash' : 'Bank';
+      }
+      transferFromEl.addEventListener('change', syncTransferTo);
+      syncTransferTo();
+
+      // Add Expense
+      expenseForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const amount = parseFloat(document.getElementById('expense-amount').value);
+        addTransaction({
+          type: 'expense',
+          date: document.getElementById('expense-date').value,
+          description: document.getElementById('expense-description').value,
+          amount: amount,
+          category: expenseCategorySelect.value,
+          method: document.querySelector('input[name="expense-method"]:checked').value,
+          note: document.getElementById('expense-note').value || '',
+          recurring: !!document.getElementById('expense-recurring').checked
+        });
+        expenseForm.reset();
+        document.getElementById('expense-date').value = todayISO();
+        updateExpenseAlertPreview();
+      });
+
+      // Add Income
+      incomeForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        addTransaction({
+          type: 'income',
+          date: document.getElementById('income-date').value,
+          description: document.getElementById('income-description').value,
+          amount: parseFloat(document.getElementById('income-amount').value),
+          category: incomeCategorySelect.value,
+          method: document.querySelector('input[name="income-method"]:checked').value,
+          note: document.getElementById('income-note').value || '',
+          recurring: !!document.getElementById('income-recurring').checked
+        });
+        incomeForm.reset();
+        document.getElementById('income-date').value = todayISO();
+      });
+
+      // Add Transfer
+      transferForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const from = transferFromEl.value;
+        addTransaction({
+          type: 'transfer',
+          date: document.getElementById('transfer-date').value,
+          description: `Transfer ${from} → ${from === 'Bank' ? 'Cash' : 'Bank'}`,
+          amount: parseFloat(document.getElementById('transfer-amount').value),
+          category: 'Transfer',
+          from: from,
+          to: from === 'Bank' ? 'Cash' : 'Bank',
+          note: document.getElementById('transfer-note').value || ''
+        });
+        transferForm.reset();
+        document.getElementById('transfer-date').value = todayISO();
+        syncTransferTo();
+      });
+
+      // Quick Withdraw = transfer Bank -> Cash
+      quickWithdrawBtn.addEventListener('click', () => {
+        tabs[2].btn.click(); // go to Transfer tab
+        transferFromEl.value = 'Bank';
+        syncTransferTo();
+        document.getElementById('transfer-amount').focus();
+      });
+
+      // Modal open/close
+      manageCategoriesBtn.addEventListener('click', () => categoryModal.classList.remove('hidden'));
+      closeModalBtn.addEventListener('click', () => categoryModal.classList.add('hidden'));
+      modalBackdrop.addEventListener('click', () => categoryModal.classList.add('hidden'));
+
+      // Add/Delete categories
+      addExpenseCategoryForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const newCat = newExpenseCategoryInput.value.trim();
+        if (newCat && !expenseCategories.includes(newCat)) {
+          expenseCategories.push(newCat);
+          saveAll(); render();
+        }
+        newExpenseCategoryInput.value = '';
+      });
+      addIncomeCategoryForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const newCat = newIncomeCategoryInput.value.trim();
+        if (newCat && !incomeCategories.includes(newCat)) {
+          incomeCategories.push(newCat);
+          saveAll(); render();
+        }
+        newIncomeCategoryInput.value = '';
+      });
+
+      // Month picker re-render
+      monthPicker.addEventListener('change', render);
+
+      // Export / Reset
+      exportBtn.addEventListener('click', () => {
+        const blob = new Blob([JSON.stringify({ transactions, expenseCategories, incomeCategories, budgets }, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = 'financial_workbook_data.json'; a.click();
+        URL.revokeObjectURL(url);
+      });
+      resetBtn.addEventListener('click', () => {
+        if (confirm('This will clear all transactions, categories and budgets from this browser. Continue?')) {
+          transactions = []; expenseCategories = ['Food','Transport','Housing','Utilities','Entertainment','Other'];
+          incomeCategories = ['Salary','Freelance','Investment','Gift','Other']; budgets = {};
+          saveAll(); render();
+        }
+      });
+
+      // Budget warning preview on Expense form
+      function updateExpenseAlertPreview() {
+        const yyyyMm = monthKeyFromInput(monthPicker.value);
+        const cat = expenseCategorySelect.value;
+        const budget = budgets[cat] ?? undefined;
+        const entered = parseFloat(expenseAmountEl.value || '0');
+        let already = 0;
+        transactions.forEach(t => {
+          if (t.type === 'expense' && t.category === cat && isInMonth(t.date, yyyyMm)) already += t.amount;
+        });
+        const willBe = already + (entered || 0);
+        const over = budget && willBe > budget;
+        if (over) {
+          expenseAmountEl.classList.add('input-alert');
+          expenseAlertEl.classList.remove('hidden');
+        } else {
+          expenseAmountEl.classList.remove('input-alert');
+          expenseAlertEl.classList.add('hidden');
+        }
+      }
+      expenseAmountEl.addEventListener('input', updateExpenseAlertPreview);
+      expenseCategorySelect.addEventListener('change', updateExpenseAlertPreview);
+      monthPicker.addEventListener('change', updateExpenseAlertPreview);
+
+      // Initialize
+      tabs[0].btn.click();
+      render();
+    });
+  </script>
+</body>
+</html>
